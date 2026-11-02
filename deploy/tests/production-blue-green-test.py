@@ -54,6 +54,47 @@ class DeploymentTests(unittest.TestCase):
         path = self.root / "calls.jsonl"
         return [json.loads(line) for line in path.read_text().splitlines()] if path.exists() else []
 
+    def test_bootstrap_retries_initial_https_failures(self):
+        self.run_cli("bootstrap", "--color", "blue", "--image", A,
+                     "--ack-bootstrap", mode="public-transient")
+        self.assertEqual(self.state()["active"], "blue")
+        self.assertGreaterEqual(self.model()["public_attempts"], 5)
+        calls = self.calls()
+        first_curl = next(i for i, call in enumerate(calls) if call[0] == "curl")
+        last_curl = max(i for i, call in enumerate(calls) if call[0] == "curl")
+        self.assertGreaterEqual(sum("adapt" in call for call in calls[first_curl:last_curl]), 3)
+        self.assertFalse((self.root / "state" / "pending.json").exists())
+
+    def test_bootstrap_https_deadline_retains_pending_and_containers(self):
+        result = self.run_cli("bootstrap", "--color", "blue", "--image", A,
+                              "--ack-bootstrap", mode="public", success=False)
+        self.assertIn("bootstrap incomplete", result.stderr)
+        self.assertFalse((self.root / "state" / "state.json").exists())
+        pending = json.loads((self.root / "state" / "pending.json").read_text())
+        transaction = self.root / "state" / "transactions" / pending["transaction"]
+        self.assertEqual(json.loads((transaction / "result.json").read_text())["outcome"],
+                         "BOOTSTRAP_INCOMPLETE")
+        self.assertTrue((transaction / "target-state.json").is_file())
+        self.assertEqual(set(self.model()["containers"]),
+                         {"app-blue", "caddy", "postgres", "redis"})
+        self.assertGreater(sum(call[0] == "curl" for call in self.calls()), 1)
+        self.assertFalse(any(op in call for call in self.calls()
+                             for op in ("stop", "down", "rm")))
+
+    def test_deploy_transient_https_failure_restores_without_retry(self):
+        self.bootstrap()
+        self.run_cli("deploy", "--image", B, mode="public-once-green", success=False)
+        self.assertEqual(self.state()["active"], "blue")
+        self.assertTrue(self.model()["runtime"]["marker"].startswith("blue-"))
+        self.assertEqual(self.model()["public_attempts"], 3)
+        self.assertEqual(self.model()["reloads"], 2)
+        self.assertFalse((self.root / "state" / "pending.json").exists())
+        calls = self.calls()
+        first_reload = next(i for i, call in enumerate(calls) if "reload" in call)
+        restore = next(i for i in range(first_reload + 1, len(calls))
+                       if "reload" in calls[i])
+        self.assertEqual(sum(call[0] == "curl" for call in calls[first_reload:restore]), 1)
+
     def test_bidirectional_and_per_color_digest(self):
         self.bootstrap()
         self.run_cli("deploy", "--image", B, "--keep-old")

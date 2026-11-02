@@ -5,7 +5,7 @@ from pathlib import Path
 import subprocess
 import tempfile
 import time
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from state import optional_image
 
@@ -26,7 +26,12 @@ class Runtime:
                        "--project-directory", str(directory), "--file", str(directory / "docker-compose.yml"),
                        "--env-file", str(args.env_file)]
 
-    def command(self, command: List[str], timeout: float = 60) -> str:
+    def command(self, command: List[str], timeout: float = 60, deadline: Optional[float] = None) -> str:
+        if deadline is not None:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise RuntimeErrorDetail("readiness deadline expired before " + " ".join(command[:3]))
+            timeout = min(timeout, remaining)
         try:
             result = subprocess.run(command, env=self.environment, capture_output=True,
                                     text=True, timeout=timeout, check=False)
@@ -38,11 +43,11 @@ class Runtime:
                 result.returncode, " ".join(command[:3])))
         return result.stdout
 
-    def compose(self, *arguments: str, timeout: float = 60) -> str:
-        return self.command(self.prefix + list(arguments), timeout)
+    def compose(self, *arguments: str, timeout: float = 60, deadline: Optional[float] = None) -> str:
+        return self.command(self.prefix + list(arguments), timeout, deadline)
 
-    def exec(self, service: str, *arguments: str) -> str:
-        return self.compose("exec", "-T", service, *arguments)
+    def exec(self, service: str, *arguments: str, deadline: Optional[float] = None) -> str:
+        return self.compose("exec", "-T", service, *arguments, deadline=deadline)
 
     def start(self, *services: str) -> None:
         self.compose("up", "-d", "--no-deps", "--pull", "never", "--wait",
@@ -85,28 +90,45 @@ class Runtime:
     def reload(self) -> None:
         self.exec("caddy", "caddy", "reload", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile")
 
-    def assert_runtime(self) -> None:
+    def assert_runtime(self, deadline: Optional[float] = None) -> None:
         try:
-            expected = json.loads(self.exec("caddy", "caddy", "adapt", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"))
-            actual = json.loads(self.exec("caddy", "wget", "-q", "-T", "10", "-O", "-", "http://127.0.0.1:2019/config/"))
+            expected = json.loads(self.exec("caddy", "caddy", "adapt", "--config", "/etc/caddy/Caddyfile",
+                                            "--adapter", "caddyfile", deadline=deadline))
+            actual = json.loads(self.exec("caddy", "wget", "-q", "-T", "10", "-O", "-",
+                                          "http://127.0.0.1:2019/config/", deadline=deadline))
         except ValueError as error:
             raise RuntimeErrorDetail("Caddy admin/adapt returned invalid JSON") from error
         if expected != actual:
             raise RuntimeErrorDetail("Caddy runtime differs from disk config; refusing to infer an active color")
 
-    def public_smoke(self, token: str) -> None:
+    def public_smoke(self, token: str, deadline: Optional[float] = None) -> None:
         for endpoint in ("/health", "/api/v1/settings/public"):
             with tempfile.TemporaryDirectory(prefix="public-probe-", dir=str(self.args.state_dir)) as folder:
                 headers = Path(folder) / "headers"
                 body = self.command(["curl", "--silent", "--show-error", "--fail", "--noproxy", "*",
                                      "--proto", "=https", "--connect-timeout", "10", "--max-time", "20",
                                      "--dump-header", str(headers), "--header", "Cache-Control: no-cache, no-store",
-                                     "https://" + self.args.domain + endpoint + "?deployment_probe=" + token])
+                                     "https://" + self.args.domain + endpoint + "?deployment_probe=" + token],
+                                    deadline=deadline)
                 targets = [line.split(":", 1)[1].strip() for line in headers.read_text().splitlines()
                            if line.lower().startswith("x-deployment-target:")]
                 if targets != [token]:
                     raise RuntimeErrorDetail("public probe did not reach the expected deployment target")
                 self.check_body(body, endpoint)
+
+    def wait_public_ready(self, token: str) -> None:
+        """Bootstrap-only: wait for asynchronous ACME issuance within the configured timeout."""
+        deadline = time.monotonic() + self.args.timeout
+        while True:
+            try:
+                self.assert_runtime(deadline)
+                self.public_smoke(token, deadline)
+                return
+            except RuntimeErrorDetail as error:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise RuntimeErrorDetail("bootstrap public readiness deadline expired") from error
+                time.sleep(min(self.args.probe_interval, remaining))
 
     def observe(self, token: str) -> None:
         deadline = time.monotonic() + self.args.observe_seconds

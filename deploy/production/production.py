@@ -134,6 +134,7 @@ def execute_transaction(args: Any, old: Optional[Dict[str, Any]]) -> None:
         atomic_write(args.state_dir / "caddy" / "Caddyfile", candidate.read_text())
         if old is None:
             runtime.start("caddy")
+            runtime.wait_public_ready(target["route_token"])
         else:
             runtime.reload()
         runtime.observe(target["route_token"])

@@ -36,6 +36,14 @@ def body(url):
 
 
 if kind == "curl":
+    if mode in ("public-transient", "public-once-green"):
+        attempts = model.get("public_attempts", 0) + 1
+        model = {**model, "public_attempts": attempts}
+        save()
+        if (mode == "public-transient" and attempts <= 3 or
+                mode == "public-once-green" and attempts == 1 and
+                model["runtime"]["marker"].startswith("green-")):
+            fail("TLS certificate not ready")
     if mode in ("public", "restore"):
         fail()
     marker = model["runtime"]["marker"]
