@@ -184,11 +184,11 @@ func runMainServer() {
 
 	log.Println("Shutting down server...")
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	if err := app.Server.Shutdown(ctx); err != nil {
-		log.Printf("Server forced to shutdown: %v", err)
+	// Ordinary SSE handlers remain active HTTP requests and are tracked by Shutdown.
+	// Hijacked connections (for example WebSockets) are not; exceeding this budget
+	// also does not cancel handlers. Deferred cleanup still follows HTTP draining.
+	if err := shutdownHTTPServer(app.Server, cfg.ShutdownTimeoutSeconds); err != nil {
+		log.Printf("HTTP shutdown did not complete within its drain budget; active streams may be interrupted on exit: %v", err)
 	}
 
 	log.Println("Server exited")

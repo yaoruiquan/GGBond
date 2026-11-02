@@ -34,7 +34,7 @@
             <BrandLockup :name="siteName" :logo="siteLogo" compact class="max-w-[10rem] sm:max-w-[16rem]" />
           </router-link>
           <router-link
-            v-if="modelPlazaEnabled"
+            v-if="showModelPlazaEntry"
             to="/model-plaza"
             class="inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1.5 text-sm font-semibold text-gray-600 transition-colors hover:bg-white hover:text-primary-600 dark:text-dark-300 dark:hover:bg-white/10 dark:hover:text-primary-300 sm:px-3"
             :title="t('nav.modelPlaza')"
@@ -159,6 +159,7 @@
 </template>
 
 <script setup lang="ts">
+import { DEFAULT_SITE_NAME, DEFAULT_SITE_LOGO } from '@/constants/branding'
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore, useAppStore } from '@/stores'
@@ -178,8 +179,8 @@ const { t } = useI18n()
 const authStore = useAuthStore()
 const appStore = useAppStore()
 
-const siteName = computed(() => appStore.cachedPublicSettings?.site_name || appStore.siteName || 'GGbond AI')
-const siteLogo = computed(() => sanitizeUrl(appStore.cachedPublicSettings?.site_logo || appStore.siteLogo || '/ggbond-logo.svg', { allowRelative: true, allowDataUrl: true }))
+const siteName = computed(() => appStore.cachedPublicSettings?.site_name || appStore.siteName || DEFAULT_SITE_NAME)
+const siteLogo = computed(() => sanitizeUrl(appStore.cachedPublicSettings?.site_logo || appStore.siteLogo || DEFAULT_SITE_LOGO, { allowRelative: true, allowDataUrl: true }))
 const siteSubtitle = computed(
   () => appStore.cachedPublicSettings?.site_subtitle || t('home.heroDescription')
 )
@@ -193,6 +194,9 @@ const isHomeContentUrl = computed(() => {
 const isDark = ref(document.documentElement.classList.contains('dark'))
 const isAuthenticated = computed(() => authStore.isAuthenticated)
 const modelPlazaEnabled = computed(() => isFeatureFlagEnabled(FeatureFlags.modelPlaza))
+const showModelPlazaEntry = computed(
+  () => modelPlazaEnabled.value && (isAuthenticated.value || appStore.cachedPublicSettings?.model_plaza_require_auth !== true)
+)
 const dashboardPath = computed(() => (authStore.isAdmin ? '/admin/dashboard' : '/dashboard'))
 const ctaPath = computed(() => (isAuthenticated.value ? dashboardPath.value : '/register'))
 const currentYear = computed(() => new Date().getFullYear())

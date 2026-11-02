@@ -5,6 +5,8 @@
 **分支**: `ggbond-branding`  
 **提交**: `9f07a1100`
 
+> 本文保留品牌迁移时的历史记录，下面的“未迁移内容”和“下一步”不代表当前待办。后续核查已纠正安全补丁、国内模型和模型广场需重复迁移的判断；当前状态与开发交接请以 [迁移路线](docs/plans/migration-roadmap.md)、[迁移交接清单](docs/plans/migration-handoff-2026-11-02.md) 为准，文档入口见 [文档中心](docs/README.md)。
+
 ---
 
 ## 迁移内容
@@ -96,7 +98,7 @@ pnpm run typecheck
 - `docs/` 文档（个人笔记，不通用）
 - 测试文件（会自动生成新的）
 
-**上游新增但本次未包含的**（见 `docs/plans/upstream-sync-2026-11.md`）：
+**上游新增但本次未包含的**（当时引用的 `upstream-sync-2026-11.md` 未纳入仓库；最新核查见 [迁移路线](docs/plans/migration-roadmap.md)）：
 - 模型广场（计划自己实现）
 - 国内大模型支持（后续单独迁移）
 - MCP OAuth、联盟分销、内容审核等企业功能
@@ -130,7 +132,7 @@ pnpm run typecheck
    - 测试 Kimi/智谱/DeepSeek
 
 3. **模型广场** (P1)
-   - 自己实现，参考 `docs/plans/model-market.md`
+   - 自己实现（历史建议；当时引用的 `model-market.md` 未纳入仓库，当前结论见 [迁移路线](docs/plans/migration-roadmap.md)）
 
 ---
 

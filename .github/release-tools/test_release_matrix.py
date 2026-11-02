@@ -132,11 +132,12 @@ class ReleaseMatrixTest(unittest.TestCase):
                 release.plan(args)
 
     def test_dry_run_plan_resolves_matrix_without_a_new_tag(self):
-        with patch.dict(os.environ, {'GITHUB_OUTPUT': 'outputs', 'GITHUB_REPOSITORY_OWNER': 'ExampleOwner'}), patch.object(subprocess, 'check_output', return_value='a' * 40 + '\n'):
+        with patch.dict(os.environ, {'GITHUB_OUTPUT': 'outputs', 'GITHUB_REPOSITORY_OWNER': 'YaoRuiQuan', 'GITHUB_REPOSITORY': 'YaoRuiQuan/GGbondai'}), patch.object(subprocess, 'check_output', return_value='a' * 40 + '\n'):
             release.plan(argparse.Namespace(ref='feature/matrix', dry_run=True, simple=False))
         output = dict(line.split('=', 1) for line in Path('outputs').read_text().splitlines())
         self.assertEqual(output['dry_run'], 'true')
-        self.assertEqual(output['owner_lower'], 'exampleowner')
+        self.assertEqual(output['owner_lower'], 'yaoruiquan')
+        self.assertEqual(output['repo_lower'], 'ggbondai')
         self.assertEqual(len(json.loads(output['matrix'])['include']), 5)
 
     def test_docker_commands_do_not_publish_during_dry_run(self):
@@ -147,7 +148,7 @@ class ReleaseMatrixTest(unittest.TestCase):
         docker.chmod(0o755)
         env = {**os.environ, 'PATH': str(fake_bin.resolve()) + os.pathsep + os.environ['PATH'],
                'DOCKER_LOG': str(Path('docker.log').resolve()), 'RUNNER_TEMP': self.temp.name,
-               'RELEASE_VERSION': '9.8.7', 'RELEASE_SHA': 'a' * 40, 'GITHUB_REPOSITORY': 'ExampleOwner/sub2api',
+               'RELEASE_VERSION': '9.8.7', 'RELEASE_SHA': 'a' * 40, 'GITHUB_REPOSITORY': 'YaoRuiQuan/GGbondai',
                'DRY_RUN': 'true', 'SIMPLE_RELEASE': 'false', 'DOCKERHUB_USERNAME': 'skip'}
         subprocess.run(['bash', str(ROOT / '.github/release-tools/release-images.sh')], env=env, check=True)
         log = Path('docker.log').read_text()
@@ -155,8 +156,10 @@ class ReleaseMatrixTest(unittest.TestCase):
         self.assertIn('linux/arm64', log)
         self.assertNotIn('--push', log)
         self.assertNotIn('imagetools', log)
-        self.assertNotIn('skip/sub2api', log)
-        self.assertIn('ghcr.io/exampleowner/sub2api', log)
+        self.assertNotIn('skip/ggbondai', log)
+        self.assertIn('ghcr.io/yaoruiquan/ggbondai', log)
+        self.assertIn('org.opencontainers.image.source=https://github.com/YaoRuiQuan/GGbondai', log)
+        self.assertNotIn('/sub2api:', log)
 
 
     def test_published_full_and_simple_image_tags(self):
@@ -170,7 +173,7 @@ class ReleaseMatrixTest(unittest.TestCase):
                 log_path = Path(f'docker-{simple}.log').resolve()
                 env = {**os.environ, 'PATH': str(fake_bin.resolve()) + os.pathsep + os.environ['PATH'],
                        'DOCKER_LOG': str(log_path), 'RUNNER_TEMP': self.temp.name,
-                       'RELEASE_VERSION': '9.8.7', 'RELEASE_SHA': 'a' * 40, 'GITHUB_REPOSITORY': 'ExampleOwner/sub2api',
+                       'RELEASE_VERSION': '9.8.7', 'RELEASE_SHA': 'a' * 40, 'GITHUB_REPOSITORY': 'YaoRuiQuan/GGbondai',
                        'DRY_RUN': 'false', 'SIMPLE_RELEASE': str(simple).lower(), 'DOCKERHUB_USERNAME': 'fixturehub'}
                 subprocess.run(['bash', str(ROOT / '.github/release-tools/release-images.sh')], env=env, check=True)
                 log = log_path.read_text()
@@ -179,12 +182,38 @@ class ReleaseMatrixTest(unittest.TestCase):
                 if simple:
                     self.assertNotIn('fixturehub', log)
                     self.assertNotIn('imagetools', log)
-                    self.assertIn('ghcr.io/exampleowner/sub2api:latest', log)
+                    self.assertIn('ghcr.io/yaoruiquan/ggbondai:latest', log)
                 else:
                     self.assertEqual(log.count('imagetools create'), 2)
-                    self.assertIn('fixturehub/sub2api:9.8', log)
-                    self.assertIn('ghcr.io/exampleowner/sub2api:9', log)
+                    self.assertIn('fixturehub/ggbondai:9.8', log)
+                    self.assertIn('ghcr.io/yaoruiquan/ggbondai:9', log)
 
+
+
+    def test_release_templates_keep_binary_names_but_use_repository_image_name(self):
+        for simple in (False, True):
+            with self.subTest(simple=simple):
+                data = release.config(simple)
+                self.assertEqual(data['project_name'], 'sub2api')
+                self.assertEqual(data['builds'][0]['binary'], 'sub2api')
+                templates = [image for docker in data['dockers']
+                             for image in docker['image_templates']]
+                templates += [item['name_template'] for item in data.get('docker_manifests', [])]
+                for template in templates:
+                    self.assertIn('/{{ .Env.GITHUB_REPO_NAME_LOWER }}:', template)
+                    self.assertNotIn('/sub2api:', template)
+                self.assertIn('/{{ .Env.GITHUB_REPO_NAME_LOWER }}:', data['release']['footer'])
+
+    def test_workflow_shares_repository_image_name_and_keeps_safety_gates(self):
+        workflow = (ROOT / '.github/workflows/release.yml').read_text()
+        self.assertIn('GITHUB_REPO_NAME_LOWER: ${{ needs.prepare.outputs.repo_lower }}', workflow)
+        self.assertIn('repository: ${{ secrets.DOCKERHUB_USERNAME }}/${{ needs.prepare.outputs.repo_lower }}', workflow)
+        self.assertIn('DOCKER_IMAGE="${DOCKERHUB_USERNAME}/${REPO_NAME_LOWER}"', workflow)
+        self.assertIn('/pkgs/container/${REPO_NAME_LOWER}', workflow)
+        self.assertNotIn('/pkgs/container/sub2api', workflow)
+        self.assertIn('bash "$RUNNER_TEMP/release-tools/release-images.sh"', workflow)
+        self.assertIn("env.DRY_RUN != 'true'", workflow)
+        self.assertIn('ref: ${{ needs.prepare.outputs.sha }}', workflow)
 
 
 if __name__ == '__main__':

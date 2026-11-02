@@ -10,11 +10,11 @@
 
 Report them privately through GitHub's private vulnerability reporting:
 
-**[Report a vulnerability](https://github.com/Wei-Shaw/sub2api/security/advisories/new)**
+**[Report a vulnerability](https://github.com/yaoruiquan/GGbondai/security/advisories/new)**
 
 (Repository → **Security** tab → **Report a vulnerability**.) Only the maintainers can see the report, and the advisory becomes the place to discuss, fix, and eventually publish the issue.
 
-If you cannot use GitHub private vulnerability reporting, email **dev@sub2api.org** instead, with `[Security]` in the subject line.
+If private vulnerability reporting is unavailable, do not post vulnerability details publicly. A fallback contact for this fork has not yet been confirmed; maintainers must configure a private reporting channel before public release.
 
 A useful report includes:
 
@@ -60,13 +60,13 @@ Please keep details private until the advisory is published. This is a volunteer
 
 **请不要通过公开的 Issue、Pull Request 或 Discussion 报告安全漏洞。**
 
-请使用 GitHub 私密漏洞报告功能提交：
+请使用 GitHub 私密漏洞报告功能提交:
 
-**[提交漏洞报告](https://github.com/Wei-Shaw/sub2api/security/advisories/new)**
+**[提交漏洞报告](https://github.com/yaoruiquan/GGbondai/security/advisories/new)**
 
 （仓库 → **Security** 标签页 → **Report a vulnerability**。）报告仅维护者可见，后续的讨论、修复与公告发布都在该安全公告中进行。
 
-如果无法使用 GitHub 私密漏洞报告，也可以发送邮件至 **dev@sub2api.org**，邮件标题请注明 `[Security]`。
+若无法使用私密漏洞报告，请勿公开漏洞细节。本分支的备用安全联系方式尚未确认；维护者应在公开发布前配置私密报告渠道。
 
 报告中建议包含：
 

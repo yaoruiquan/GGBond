@@ -110,6 +110,10 @@ type Config struct {
 	ImageStorage            ImageStorageConfig            `mapstructure:"image_storage"`
 	Plugins                 PluginConfig                  `mapstructure:"plugins"`
 
+	// ShutdownTimeoutSeconds bounds HTTP draining, not the subsequent service cleanup.
+	// Missing configuration uses 60 seconds (the previous hard-coded budget was 5).
+	ShutdownTimeoutSeconds int `mapstructure:"shutdown_timeout_seconds"`
+
 	// Enforce only API-key spending windows in simple mode.
 	SimpleModeKeyRateLimitEnabled bool `mapstructure:"simple_mode_key_rate_limit_enabled" yaml:"simple_mode_key_rate_limit_enabled"`
 }
@@ -1914,10 +1918,17 @@ func load(allowMissingJWTSecret bool) (*Config, error) {
 	trustedProxiesConfigured := viper.InConfig("server.trusted_proxies") ||
 		viper.IsSet("server.trusted_proxies") || trustedProxiesEnvConfigured
 
+	// Validate the raw value before Viper's weak integer conversion can truncate fractions.
+	shutdownTimeout, err := parseShutdownTimeoutSeconds(viper.Get("shutdown_timeout_seconds"))
+	if err != nil {
+		return nil, err
+	}
+
 	var cfg Config
 	if err := viper.Unmarshal(&cfg); err != nil {
 		return nil, fmt.Errorf("unmarshal config error: %w", err)
 	}
+	cfg.ShutdownTimeoutSeconds = shutdownTimeout
 	if trustedProxiesEnvConfigured {
 		cfg.Server.TrustedProxies = normalizeStringSlice(strings.Split(trustedProxiesEnv, ","))
 	}
@@ -2090,6 +2101,7 @@ func configureConfigSource(setConfigFile, addConfigPath func(string)) {
 }
 
 func setDefaults() {
+	viper.SetDefault("shutdown_timeout_seconds", DefaultShutdownTimeoutSeconds)
 	viper.SetDefault("run_mode", RunModeStandard)
 	viper.SetDefault("gateway.min_output_tokens", 128)
 	viper.SetDefault("simple_mode.auto_create_default_groups", true)
@@ -2766,6 +2778,9 @@ func setEnvReachableDefaults() {
 }
 
 func (c *Config) Validate() error {
+	if err := validateShutdownTimeoutSeconds(c.ShutdownTimeoutSeconds); err != nil {
+		return err
+	}
 	if c.Gateway.MinOutputTokens < 16 {
 		return fmt.Errorf("gateway.min_output_tokens must be at least 16")
 	}

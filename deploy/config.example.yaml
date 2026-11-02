@@ -6,6 +6,12 @@
 #
 # Documentation / 文档: https://github.com/Wei-Shaw/sub2api
 
+# HTTP graceful shutdown budget in seconds (integer 1-3600).
+# Env override: SHUTDOWN_TIMEOUT_SECONDS. Default stop window is 90s.
+# Increase Compose stop_grace_period/systemd TimeoutStopSec for longer budgets,
+# leaving additional time for cleanup. Long streams can still exceed this budget.
+shutdown_timeout_seconds: 60
+
 # =============================================================================
 # Server Configuration
 # 服务器配置

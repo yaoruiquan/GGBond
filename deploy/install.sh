@@ -2,7 +2,7 @@
 #
 # Sub2API Installation Script
 # Sub2API 安装脚本
-# Usage: curl -sSL https://raw.githubusercontent.com/Wei-Shaw/sub2api/main/deploy/install.sh | bash
+# Usage: curl -sSL https://raw.githubusercontent.com/yaoruiquan/GGbondai/main/deploy/install.sh | bash
 #
 
 set -e
@@ -31,7 +31,7 @@ CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
 # Configuration
-GITHUB_REPO="Wei-Shaw/sub2api"
+GITHUB_REPO="yaoruiquan/GGbondai"
 INSTALL_DIR="/opt/sub2api"
 SERVICE_NAME="sub2api"
 SERVICE_USER="sub2api"
@@ -718,7 +718,7 @@ install_service() {
     cat > /etc/systemd/system/sub2api.service << EOF
 [Unit]
 Description=Sub2API - AI API Gateway Platform
-Documentation=https://github.com/Wei-Shaw/sub2api
+Documentation=https://github.com/yaoruiquan/GGbondai
 After=network.target postgresql.service redis.service
 Wants=postgresql.service redis.service
 
@@ -730,6 +730,8 @@ WorkingDirectory=/opt/sub2api
 ExecStart=/opt/sub2api/sub2api
 Restart=always
 RestartSec=5
+# Default 60s HTTP drain plus cleanup. Increase both values for longer drains.
+TimeoutStopSec=90s
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=sub2api
@@ -743,6 +745,7 @@ ReadWritePaths=/opt/sub2api
 
 # Environment - Server configuration
 Environment=GIN_MODE=release
+Environment=SHUTDOWN_TIMEOUT_SECONDS=60
 Environment=SERVER_HOST=${SERVER_HOST}
 Environment=SERVER_PORT=${SERVER_PORT}
 

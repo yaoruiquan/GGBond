@@ -56,10 +56,10 @@ Use the automated preparation script for the easiest setup:
 
 ```bash
 # Download and run the preparation script
-curl -sSL https://raw.githubusercontent.com/Wei-Shaw/sub2api/main/deploy/docker-deploy.sh | bash
+curl -sSL https://raw.githubusercontent.com/yaoruiquan/GGbondai/main/deploy/docker-deploy.sh | bash
 
 # Or download first, then run
-curl -sSL https://raw.githubusercontent.com/Wei-Shaw/sub2api/main/deploy/docker-deploy.sh -o docker-deploy.sh
+curl -sSL https://raw.githubusercontent.com/yaoruiquan/GGbondai/main/deploy/docker-deploy.sh -o docker-deploy.sh
 chmod +x docker-deploy.sh
 ./docker-deploy.sh
 ```
@@ -92,7 +92,7 @@ If you prefer manual control:
 
 ```bash
 # Clone repository
-git clone https://github.com/Wei-Shaw/sub2api.git
+git clone https://github.com/yaoruiquan/GGbondai.git
 cd sub2api/deploy
 
 # Configure environment
@@ -191,6 +191,48 @@ SELECT
   (SELECT COUNT(*) FROM old_pairs)           AS old_pair_count,
   (SELECT COUNT(*) FROM user_allowed_groups) AS new_pair_count;
 ```
+
+### GGBond migration safety and recovery gate
+
+Before starting a newer backend against an existing environment, verify that the
+old and new projects do not unintentionally share a PostgreSQL database, Redis
+namespace or application data directory. Startup applies forward-only migrations;
+a different source directory alone does not isolate data. Record only the result
+of the comparison, never credentials or full connection strings. The 2026-11-02
+migration work could not complete the private configuration comparison because
+access was restricted; isolation remains **unverified**.
+
+Use the existing administrative backup capability where available instead of
+copying the old production scripts wholesale. A complete recovery plan must cover:
+
+- PostgreSQL backup, exact application version/image digest and backup timestamp.
+- Private application configuration, required signing/encryption keys and any
+  filesystem/object-storage data not included in the database dump. In particular,
+  retain the configured `TOTP_ENCRYPTION_KEY` securely so encrypted secrets remain
+  decryptable after recovery; never paste its value into logs or documentation.
+- An off-host copy, checksum, access controls and a documented retention policy.
+- Redis data according to the actual persistence requirements; do not assume a
+  database dump also covers Redis or application files.
+
+A successful dump or a nonempty file is not proof of recoverability. Before the
+first production upgrade, run an explicitly approved rehearsal:
+
+1. Provision an isolated PostgreSQL target, separate Redis namespace and separate
+   application data directory. Verify their identities before any restore.
+2. Restore a copy of the backup into that target only, using a compatible
+   PostgreSQL toolchain. Never use the running environment's restore endpoint as
+   a substitute for an isolated rehearsal.
+3. Validate expected schema and representative record counts without exposing
+   secrets. Use the matching application version and prevent scheduled jobs,
+   webhooks, payment actions and upstream model requests during validation.
+4. Record the backup checksum, application version, result and elapsed time.
+   Retain the source environment unchanged and clean up the rehearsal only after
+   approval.
+
+Application rollback and database recovery are separate decisions. Do not start
+an old application against an upgraded database or restore a historical dump over
+an existing database merely to test rollback. No database creation, configuration
+switch or restore is performed by the migration code changes themselves.
 
 ### datamanagementd（数据管理）联动
 
@@ -398,12 +440,12 @@ For production servers using systemd.
 ### One-Line Installation
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/Wei-Shaw/sub2api/main/deploy/install.sh | sudo bash
+curl -sSL https://raw.githubusercontent.com/yaoruiquan/GGbondai/main/deploy/install.sh | sudo bash
 ```
 
 ### Manual Installation
 
-1. Download the latest release from [GitHub Releases](https://github.com/Wei-Shaw/sub2api/releases)
+1. Download the latest release from [GitHub Releases](https://github.com/yaoruiquan/GGbondai/releases)
 2. Extract and copy the binary to `/opt/sub2api/`
 3. Copy `sub2api.service` to `/etc/systemd/system/`
 4. Run:

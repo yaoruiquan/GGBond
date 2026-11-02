@@ -68,6 +68,7 @@ def plan(args):
     VERSION_FILE.write_text(version + '\n')
     result = {'sha': sha, 'tag': tag, 'version': version,
               'owner_lower': os.environ.get('GITHUB_REPOSITORY_OWNER', '').lower(),
+              'repo_lower': os.environ['GITHUB_REPOSITORY'].rsplit('/', 1)[-1].lower(),
               'simple': str(args.simple).lower(), 'dry_run': str(args.dry_run).lower(),
               'date': datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
               'matrix': json.dumps({'include': targets(args.simple)}, separators=(',', ':'))}

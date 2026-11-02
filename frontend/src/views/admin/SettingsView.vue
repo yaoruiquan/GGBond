@@ -8935,6 +8935,7 @@
 </template>
 
 <script setup lang="ts">
+import { DEFAULT_SITE_NAME } from '@/constants/branding'
 import { ref, reactive, computed, onMounted, watch } from "vue";
 import { listPlatformIds } from "@/constants/platformCatalog";
 import { useI18n } from "vue-i18n";
@@ -9767,7 +9768,7 @@ const form = reactive<SettingsForm>({
   default_subscriptions: [],
   force_email_on_third_party_signup: false,
   default_user_rpm_limit: 0,
-  site_name: "Sub2API",
+  site_name: DEFAULT_SITE_NAME,
   site_logo: "",
   site_subtitle: "Subscription to API Conversion Platform",
   api_base_url: "",

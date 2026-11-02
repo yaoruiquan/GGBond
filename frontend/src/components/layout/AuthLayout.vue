@@ -33,7 +33,7 @@
           <div
             class="mb-4 inline-flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl bg-gradient-to-br from-ggbond-skin-100 to-ggbond-yellow-50 shadow-lg shadow-primary-500/30 ring-1 ring-primary-500/15 dark:from-primary-900/20 dark:to-ggbond-yellow-900/20"
           >
-            <img :src="siteLogo || '/ggbond-logo.svg'" alt="Logo" class="h-full w-full object-contain" />
+            <img :src="siteLogo || DEFAULT_SITE_LOGO" alt="Logo" class="h-full w-full object-contain" />
           </div>
           <h1 class="text-gradient mb-2 text-3xl font-bold">
             {{ siteName }}
@@ -63,13 +63,14 @@
 </template>
 
 <script setup lang="ts">
+import { DEFAULT_SITE_NAME, DEFAULT_SITE_LOGO } from '@/constants/branding'
 import { computed, onMounted } from 'vue'
 import { useAppStore } from '@/stores'
 import { sanitizeUrl } from '@/utils/url'
 
 const appStore = useAppStore()
 
-const siteName = computed(() => appStore.siteName || 'GGbond AI')
+const siteName = computed(() => appStore.siteName || DEFAULT_SITE_NAME)
 const siteLogo = computed(() => sanitizeUrl(appStore.siteLogo || '', { allowRelative: true, allowDataUrl: true }))
 const siteSubtitle = computed(() => appStore.cachedPublicSettings?.site_subtitle || 'AI API 服务平台')
 const settingsLoaded = computed(() => appStore.publicSettingsLoaded)
