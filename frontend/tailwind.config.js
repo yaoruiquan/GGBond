@@ -1,3 +1,44 @@
+// 猪猪侠主题色阶（取色自角色原图）。primary 与 ggbond-red 共用同一份数据。
+// red 500 及以上与白色对比度 >= 4.5（WCAG AA），可用于白字按钮和白底正文。
+const red = {
+  50: '#FFF3F1',
+  100: '#FFE3DF',
+  200: '#FFC4BC',
+  300: '#FF978A',
+  400: '#F65A4B',
+  500: '#E2231A', // 头套红
+  600: '#C8191A',
+  700: '#A81313',
+  800: '#8A0F11',
+  900: '#6E0D0F',
+  950: '#3F0506'
+}
+
+// 眉饰黄。只配深色文字（与白字对比度不足）。
+const yellow = {
+  50: '#FFFBEA',
+  100: '#FFF3C4',
+  200: '#FFE685',
+  300: '#FFD84A',
+  400: '#FFC81F',
+  500: '#FFB703',
+  600: '#DB8C00',
+  700: '#B26500',
+  800: '#8F4E06',
+  900: '#76410B',
+  950: '#442100'
+}
+
+// 角色肤色，用于浅色底和卡片
+const skin = {
+  50: '#FFFAF6',
+  100: '#FFF3EA',
+  200: '#FCE3D2',
+  300: '#F6CDB4',
+  400: '#EBA08A',
+  500: '#D9806A'
+}
+
 /** @type {import('tailwindcss').Config} */
 export default {
   content: ['./index.html', './src/**/*.{vue,js,ts,jsx,tsx}'],
@@ -5,20 +46,8 @@ export default {
   theme: {
     extend: {
       colors: {
-        // 主色调 - Teal/Cyan 青色系
-        primary: {
-          50: '#f0fdfa',
-          100: '#ccfbf1',
-          200: '#99f6e4',
-          300: '#5eead4',
-          400: '#2dd4bf',
-          500: '#14b8a6',
-          600: '#0d9488',
-          700: '#0f766e',
-          800: '#115e59',
-          900: '#134e4a',
-          950: '#042f2e'
-        },
+        // 主色调 - GGbond 红
+        primary: red,
         // 辅助色 - 深蓝灰
         accent: {
           50: '#f8fafc',
@@ -33,6 +62,9 @@ export default {
           900: '#0f172a',
           950: '#020617'
         },
+        'ggbond-red': red,
+        'ggbond-yellow': yellow,
+        'ggbond-skin': skin,
         // 深色模式背景
         dark: {
           50: '#f8fafc',

@@ -2,24 +2,11 @@
   <div class="empty-state">
     <!-- Icon -->
     <div
-      class="mb-5 flex h-20 w-20 items-center justify-center rounded-2xl bg-gray-100 dark:bg-dark-800"
+      class="mb-5 flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-ggbond-skin-100 to-ggbond-yellow-50 dark:from-primary-900/20 dark:to-ggbond-yellow-900/20"
     >
       <slot name="icon">
         <component v-if="icon" :is="icon" class="empty-state-icon h-10 w-10" aria-hidden="true" />
-        <svg
-          v-else
-          class="empty-state-icon h-10 w-10"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-          stroke-width="1.5"
-        >
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"
-          />
-        </svg>
+        <img v-else src="/ggbond-logo.svg" alt="" class="h-14 w-14 opacity-80" />
       </slot>
     </div>
 

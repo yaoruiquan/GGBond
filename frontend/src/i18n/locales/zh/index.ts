@@ -7,6 +7,8 @@ import channelMonitorV2 from './channelMonitorV2'
 import batchImage from './batchImage'
 import admin from './admin'
 import misc from './misc'
+import ggbond from './ggbond'
+import homeGgbond from './home-ggbond'
 
 export default {
   adminAccessKeys,
@@ -18,4 +20,7 @@ export default {
   ...batchImage,
   admin,
   ...misc,
+  ggbond,
+  // GGbond AI 首页用 home.* 命名空间：合并 landing.home 与 GGbond 文案。
+  home: { ...(landing as any).home, ...homeGgbond },
 }
