@@ -188,5 +188,10 @@ class DeploymentTests(unittest.TestCase):
         self.assertTrue(any("app-green" in call and "http://localhost:8080/api/v1/settings/public" in call for call in calls[:first_reload]))
 
 
+    def test_compose_sets_valid_database_pool_limits(self):
+        compose = (DEPLOY / "production" / "docker-compose.yml").read_text()
+        self.assertIn("DATABASE_MAX_OPEN_CONNS: ${DATABASE_MAX_OPEN_CONNS:-50}", compose)
+        self.assertIn("DATABASE_MAX_IDLE_CONNS: ${DATABASE_MAX_IDLE_CONNS:-10}", compose)
+
 if __name__ == "__main__":
     unittest.main()
