@@ -28,10 +28,22 @@
     </div>
 
     <header class="relative z-30">
-      <nav class="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
-        <router-link to="/" class="inline-flex items-center transition-transform hover:scale-105">
-          <BrandLockup :name="siteName" :logo="siteLogo" compact />
-        </router-link>
+      <nav class="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-y-2 px-4 py-4 sm:px-6 lg:px-8">
+        <div class="flex min-w-0 items-center gap-3 sm:gap-6">
+          <router-link to="/" class="inline-flex min-w-0 items-center transition-transform hover:scale-105">
+            <BrandLockup :name="siteName" :logo="siteLogo" compact class="max-w-[10rem] sm:max-w-[16rem]" />
+          </router-link>
+          <router-link
+            v-if="modelPlazaEnabled"
+            to="/model-plaza"
+            class="inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1.5 text-sm font-semibold text-gray-600 transition-colors hover:bg-white hover:text-primary-600 dark:text-dark-300 dark:hover:bg-white/10 dark:hover:text-primary-300 sm:px-3"
+            :title="t('nav.modelPlaza')"
+            :aria-label="t('nav.modelPlaza')"
+          >
+            <Icon name="grid" size="sm" />
+            <span class="hidden sm:inline">{{ t('nav.modelPlaza') }}</span>
+          </router-link>
+        </div>
 
         <div class="flex items-center gap-1 sm:gap-2">
           <LocaleSwitcher />
@@ -153,6 +165,7 @@ import { useAuthStore, useAppStore } from '@/stores'
 import LocaleSwitcher from '@/components/common/LocaleSwitcher.vue'
 import Icon from '@/components/icons/Icon.vue'
 import BrandLockup from '@/components/brand/BrandLockup.vue'
+import { FeatureFlags, isFeatureFlagEnabled } from '@/utils/featureFlags'
 import { sanitizeUrl } from '@/utils/url'
 import ModelOrbit from './home/ModelOrbit.vue'
 import FeaturedModelCard from './home/FeaturedModelCard.vue'
@@ -179,6 +192,7 @@ const isHomeContentUrl = computed(() => {
 
 const isDark = ref(document.documentElement.classList.contains('dark'))
 const isAuthenticated = computed(() => authStore.isAuthenticated)
+const modelPlazaEnabled = computed(() => isFeatureFlagEnabled(FeatureFlags.modelPlaza))
 const dashboardPath = computed(() => (authStore.isAdmin ? '/admin/dashboard' : '/dashboard'))
 const ctaPath = computed(() => (isAuthenticated.value ? dashboardPath.value : '/register'))
 const currentYear = computed(() => new Date().getFullYear())
