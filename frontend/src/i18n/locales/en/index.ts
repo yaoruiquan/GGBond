@@ -22,5 +22,5 @@ export default {
   ...misc,
   ggbond,
   // GGbond AI home uses home.* namespace: merge landing.home with GGbond copy
-  home: { ...(landing as any).home, ...homeGgbond },
+  home: { ...landing.home, ...homeGgbond },
 }

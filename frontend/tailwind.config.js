@@ -103,7 +103,10 @@ export default {
         'glow-lg': '0 0 40px rgba(20, 184, 166, 0.35)',
         card: '0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.06)',
         'card-hover': '0 10px 40px rgba(0, 0, 0, 0.08)',
-        'inner-glow': 'inset 0 1px 0 rgba(255, 255, 255, 0.1)'
+        'inner-glow': 'inset 0 1px 0 rgba(255, 255, 255, 0.1)',
+        // GGbond 品牌阴影
+        'glow-red': '0 0 20px rgba(226, 35, 26, 0.45), 0 4px 12px rgba(226, 35, 26, 0.25)',
+        'card-ggbond': '0 6px 16px rgba(138, 15, 17, 0.12), 0 0 0 1px rgba(226, 35, 26, 0.08)'
       },
       backgroundImage: {
         'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
@@ -122,7 +125,9 @@ export default {
         'scale-in': 'scaleIn 0.2s ease-out',
         'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
         shimmer: 'shimmer 2s linear infinite',
-        glow: 'glow 2s ease-in-out infinite alternate'
+        glow: 'glow 2s ease-in-out infinite alternate',
+        // GGbond 背景光点
+        twinkle: 'twinkle 3s ease-in-out infinite'
       },
       keyframes: {
         fadeIn: {
@@ -152,6 +157,10 @@ export default {
         glow: {
           '0%': { boxShadow: '0 0 20px rgba(20, 184, 166, 0.25)' },
           '100%': { boxShadow: '0 0 30px rgba(20, 184, 166, 0.4)' }
+        },
+        twinkle: {
+          '0%, 100%': { opacity: '0.2', transform: 'scale(0.8)' },
+          '50%': { opacity: '1', transform: 'scale(1.2)' }
         }
       },
       backdropBlur: {

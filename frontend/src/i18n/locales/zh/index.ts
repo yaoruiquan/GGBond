@@ -22,5 +22,5 @@ export default {
   ...misc,
   ggbond,
   // GGbond AI 首页用 home.* 命名空间：合并 landing.home 与 GGbond 文案。
-  home: { ...(landing as any).home, ...homeGgbond },
+  home: { ...landing.home, ...homeGgbond },
 }
