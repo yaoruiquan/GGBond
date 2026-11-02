@@ -1,6 +1,6 @@
 [Unit]
 Description=Sub2API - AI API Gateway Platform
-Documentation=https://github.com/yaoruiquan/GGbondai
+Documentation=https://github.com/yaoruiquan/GGBond
 After=network.target postgresql.service redis.service
 Wants=postgresql.service redis.service
 

@@ -132,12 +132,12 @@ class ReleaseMatrixTest(unittest.TestCase):
                 release.plan(args)
 
     def test_dry_run_plan_resolves_matrix_without_a_new_tag(self):
-        with patch.dict(os.environ, {'GITHUB_OUTPUT': 'outputs', 'GITHUB_REPOSITORY_OWNER': 'YaoRuiQuan', 'GITHUB_REPOSITORY': 'YaoRuiQuan/GGbondai'}), patch.object(subprocess, 'check_output', return_value='a' * 40 + '\n'):
+        with patch.dict(os.environ, {'GITHUB_OUTPUT': 'outputs', 'GITHUB_REPOSITORY_OWNER': 'YaoRuiQuan', 'GITHUB_REPOSITORY': 'YaoRuiQuan/GGBond'}), patch.object(subprocess, 'check_output', return_value='a' * 40 + '\n'):
             release.plan(argparse.Namespace(ref='feature/matrix', dry_run=True, simple=False))
         output = dict(line.split('=', 1) for line in Path('outputs').read_text().splitlines())
         self.assertEqual(output['dry_run'], 'true')
         self.assertEqual(output['owner_lower'], 'yaoruiquan')
-        self.assertEqual(output['repo_lower'], 'ggbondai')
+        self.assertEqual(output['repo_lower'], 'ggbond')
         self.assertEqual(len(json.loads(output['matrix'])['include']), 5)
 
     def test_docker_commands_do_not_publish_during_dry_run(self):
@@ -148,7 +148,7 @@ class ReleaseMatrixTest(unittest.TestCase):
         docker.chmod(0o755)
         env = {**os.environ, 'PATH': str(fake_bin.resolve()) + os.pathsep + os.environ['PATH'],
                'DOCKER_LOG': str(Path('docker.log').resolve()), 'RUNNER_TEMP': self.temp.name,
-               'RELEASE_VERSION': '9.8.7', 'RELEASE_SHA': 'a' * 40, 'GITHUB_REPOSITORY': 'YaoRuiQuan/GGbondai',
+               'RELEASE_VERSION': '9.8.7', 'RELEASE_SHA': 'a' * 40, 'GITHUB_REPOSITORY': 'YaoRuiQuan/GGBond',
                'DRY_RUN': 'true', 'SIMPLE_RELEASE': 'false', 'DOCKERHUB_USERNAME': 'skip'}
         subprocess.run(['bash', str(ROOT / '.github/release-tools/release-images.sh')], env=env, check=True)
         log = Path('docker.log').read_text()
@@ -156,9 +156,9 @@ class ReleaseMatrixTest(unittest.TestCase):
         self.assertIn('linux/arm64', log)
         self.assertNotIn('--push', log)
         self.assertNotIn('imagetools', log)
-        self.assertNotIn('skip/ggbondai', log)
-        self.assertIn('ghcr.io/yaoruiquan/ggbondai', log)
-        self.assertIn('org.opencontainers.image.source=https://github.com/YaoRuiQuan/GGbondai', log)
+        self.assertNotIn('skip/ggbond', log)
+        self.assertIn('ghcr.io/yaoruiquan/ggbond', log)
+        self.assertIn('org.opencontainers.image.source=https://github.com/YaoRuiQuan/GGBond', log)
         self.assertNotIn('/sub2api:', log)
 
 
@@ -173,7 +173,7 @@ class ReleaseMatrixTest(unittest.TestCase):
                 log_path = Path(f'docker-{simple}.log').resolve()
                 env = {**os.environ, 'PATH': str(fake_bin.resolve()) + os.pathsep + os.environ['PATH'],
                        'DOCKER_LOG': str(log_path), 'RUNNER_TEMP': self.temp.name,
-                       'RELEASE_VERSION': '9.8.7', 'RELEASE_SHA': 'a' * 40, 'GITHUB_REPOSITORY': 'YaoRuiQuan/GGbondai',
+                       'RELEASE_VERSION': '9.8.7', 'RELEASE_SHA': 'a' * 40, 'GITHUB_REPOSITORY': 'YaoRuiQuan/GGBond',
                        'DRY_RUN': 'false', 'SIMPLE_RELEASE': str(simple).lower(), 'DOCKERHUB_USERNAME': 'fixturehub'}
                 subprocess.run(['bash', str(ROOT / '.github/release-tools/release-images.sh')], env=env, check=True)
                 log = log_path.read_text()
@@ -182,11 +182,11 @@ class ReleaseMatrixTest(unittest.TestCase):
                 if simple:
                     self.assertNotIn('fixturehub', log)
                     self.assertNotIn('imagetools', log)
-                    self.assertIn('ghcr.io/yaoruiquan/ggbondai:latest', log)
+                    self.assertIn('ghcr.io/yaoruiquan/ggbond:latest', log)
                 else:
                     self.assertEqual(log.count('imagetools create'), 2)
-                    self.assertIn('fixturehub/ggbondai:9.8', log)
-                    self.assertIn('ghcr.io/yaoruiquan/ggbondai:9', log)
+                    self.assertIn('fixturehub/ggbond:9.8', log)
+                    self.assertIn('ghcr.io/yaoruiquan/ggbond:9', log)
 
 
 

@@ -651,9 +651,9 @@ import {
 import { useClipboard } from '@/composables/useClipboard'
 import Icon from '@/components/icons/Icon.vue'
 
-const GITHUB_REPO = 'yaoruiquan/GGbondai'
+const GITHUB_REPO = 'yaoruiquan/GGBond'
 // GHCR release image (tags carry no "v" prefix).
-const DOCKER_IMAGE = 'ghcr.io/yaoruiquan/ggbondai'
+const DOCKER_IMAGE = 'ghcr.io/yaoruiquan/ggbond'
 
 const { t } = useI18n()
 

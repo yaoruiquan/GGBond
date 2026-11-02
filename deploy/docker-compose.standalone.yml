@@ -12,7 +12,7 @@
 
 services:
   sub2api:
-    image: ghcr.io/yaoruiquan/ggbondai:latest
+    image: ghcr.io/yaoruiquan/ggbond:latest
     container_name: sub2api
     # Default 60s HTTP drain plus cleanup; increase with SHUTDOWN_TIMEOUT_SECONDS.
     stop_grace_period: 90s

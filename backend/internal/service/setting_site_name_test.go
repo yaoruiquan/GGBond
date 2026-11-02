@@ -9,7 +9,8 @@ import (
 )
 
 type siteNameRepoStub struct {
-	values map[string]string
+	values  map[string]string
+	written map[string]string
 }
 
 func (s *siteNameRepoStub) Get(ctx context.Context, key string) (*Setting, error) {
@@ -38,7 +39,11 @@ func (s *siteNameRepoStub) GetMultiple(ctx context.Context, keys []string) (map[
 }
 
 func (s *siteNameRepoStub) SetMultiple(ctx context.Context, settings map[string]string) error {
-	panic("unexpected SetMultiple call")
+	s.written = make(map[string]string, len(settings))
+	for key, value := range settings {
+		s.written[key] = value
+	}
+	return nil
 }
 
 func (s *siteNameRepoStub) GetAll(ctx context.Context) (map[string]string, error) {
@@ -84,16 +89,25 @@ func TestInitializeDefaultSettings_SiteNameDefaultsToGGbondAI(t *testing.T) {
 	repo := &siteNameRepoStub{values: map[string]string{}}
 	svc := NewSettingService(repo, &config.Config{})
 
-	// Exercising the initialization path requires GetMultiple + SetMultiple;
-	// the current stub does not implement those, so we skip the actual call
-	// and only document the expected contract: when the setting is missing,
-	// InitializeDefaultSettings must store defaultSiteName.
-	t.Skip("Stub does not implement SetMultiple; integration test covers the full path")
+	require.NoError(t, svc.InitializeDefaultSettings(context.Background()))
+
+	require.Equal(t, defaultSiteName, repo.written[SettingKeySiteName])
 }
 
 func TestParseSettings_SiteNameMissingFallsBackToGGbondAI(t *testing.T) {
-	// parseSettings is not exported and GetSettings is not present; skip parse test.
-	t.Skip("GetSettings or parseSettings not exported; integration or admin-settings test covers this")
+	svc := NewSettingService(&siteNameRepoStub{values: map[string]string{}}, &config.Config{})
+
+	settings := svc.parseSettings(map[string]string{})
+
+	require.Equal(t, defaultSiteName, settings.SiteName)
+}
+
+func TestParseSettings_ExplicitSiteNameIsNotOverridden(t *testing.T) {
+	svc := NewSettingService(&siteNameRepoStub{values: map[string]string{}}, &config.Config{})
+
+	settings := svc.parseSettings(map[string]string{SettingKeySiteName: "Sub2API"})
+
+	require.Equal(t, "Sub2API", settings.SiteName)
 }
 
 func TestGetPublicSettings_SiteNameMissingFallsBackToGGbondAI(t *testing.T) {

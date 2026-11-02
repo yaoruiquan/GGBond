@@ -6,7 +6,7 @@
 
 ## 1. 上线门禁
 
-执行任何真实命令前，另行审核服务器拓扑、域名及端口、当前版本、镜像架构和 digest、现有 Compose 项目名与卷归属。首次空环境与已有 GGbondai 迁站是不同操作，不能通过 bootstrap 自动认领旧容器或旧卷；禁止 `down -v`。
+执行任何真实命令前，另行审核服务器拓扑、域名及端口、当前版本、镜像架构和 digest、现有 Compose 项目名与卷归属。首次空环境与已有 GGBond 迁站是不同操作，不能通过 bootstrap 自动认领旧容器或旧卷；禁止 `down -v`。
 
 - blue、green 共享同一生产 PostgreSQL/Redis，但开发环境不得误连生产。
 - 两色使用独立不可变镜像 digest；不要用 `latest` 或可变 tag 作为恢复依据。
@@ -42,7 +42,7 @@ Caddy 配置只能包含一个活动色 upstream，候选通过健康与直连�
   --env-file /ABSOLUTE/PATH/production.env \
   --domain api.example.com --project ggbond-production \
   bootstrap --color blue \
-  --image ghcr.io/yaoruiquan/ggbondai@sha256:REPLACE_WITH_APPROVED_DIGEST \
+  --image ghcr.io/yaoruiquan/ggbond@sha256:REPLACE_WITH_APPROVED_DIGEST \
   --ack-bootstrap --ack-schema-compatible --ack-dual-instance \
   --backup-ref REPLACE_WITH_VERIFIED_BACKUP_ID
 ```

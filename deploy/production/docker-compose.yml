@@ -1,0 +1,110 @@
+# Optional, independent single-host stack. Do not merge with ../docker-compose.yml.
+# Never invoke directly to switch traffic: use production.sh with its state lock.
+x-app: &app
+  restart: unless-stopped
+  stop_grace_period: 90s
+  security_opt: ["no-new-privileges:true"]
+  ulimits:
+    nofile:
+      soft: 100000
+      hard: 100000
+  environment: &app-environment
+    AUTO_SETUP: "true"
+    SERVER_HOST: 0.0.0.0
+    SERVER_PORT: "8080"
+    SERVER_MODE: release
+    SHUTDOWN_TIMEOUT_SECONDS: "60"
+    DATABASE_HOST: postgres
+    DATABASE_PORT: "5432"
+    DATABASE_USER: ${POSTGRES_USER:-sub2api}
+    DATABASE_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    DATABASE_DBNAME: ${POSTGRES_DB:-sub2api}
+    DATABASE_SSLMODE: disable
+    DATABASE_MAX_OPEN_CONNS: ${DATABASE_MAX_OPEN_CONNS:-50}
+    REDIS_HOST: redis
+    REDIS_PORT: "6379"
+    REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+    JWT_SECRET: ${JWT_SECRET:?fixed JWT_SECRET is required}
+    TOTP_ENCRYPTION_KEY: ${TOTP_ENCRYPTION_KEY:?fixed TOTP_ENCRYPTION_KEY is required}
+    ADMIN_EMAIL: ${ADMIN_EMAIL:?ADMIN_EMAIL is required for explicit bootstrap}
+    ADMIN_PASSWORD: ${ADMIN_PASSWORD:?ADMIN_PASSWORD is required for explicit bootstrap}
+    TZ: ${TZ:-Asia/Shanghai}
+    SECURITY_FORWARDED_CLIENT_IP_HEADERS: ""
+    SECURITY_URL_ALLOWLIST_ALLOW_INSECURE_HTTP: "false"
+    SECURITY_URL_ALLOWLIST_ALLOW_PRIVATE_HOSTS: "false"
+  healthcheck:
+    test: ["CMD", "wget", "-q", "-T", "5", "-O", "/dev/null", "http://localhost:8080/health"]
+    interval: 5s
+    timeout: 10s
+    retries: 36
+    start_period: 120s
+  networks: [application]
+  logging: &logging
+    driver: json-file
+    options:
+      max-size: "20m"
+      max-file: "5"
+
+services:
+  app-blue:
+    <<: *app
+    image: ${BLUE_IMAGE:?BLUE_IMAGE is managed by production.sh}
+    volumes: ["blue_data:/app/data"]
+  app-green:
+    <<: *app
+    image: ${GREEN_IMAGE:?GREEN_IMAGE is managed by production.sh}
+    volumes: ["green_data:/app/data"]
+  caddy:
+    image: caddy:2.10.2-alpine
+    restart: unless-stopped
+    security_opt: ["no-new-privileges:true"]
+    ports: ["80:80", "443:443"]
+    volumes:
+      # Directory bind is required: atomic rename must be visible inside Caddy.
+      - ${PRODUCTION_STATE_DIR:?PRODUCTION_STATE_DIR is managed by production.sh}/caddy:/etc/caddy:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks: [application]
+    logging: *logging
+  postgres:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      PGDATA: /var/lib/postgresql/data
+      POSTGRES_USER: ${POSTGRES_USER:-sub2api}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: ${POSTGRES_DB:-sub2api}
+    volumes: ["postgres_data:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\" && psql -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\" -Atqc 'SELECT 1' >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+      start_period: 60s
+    networks: [application]
+    logging: *logging
+  redis:
+    image: redis:8-alpine
+    restart: unless-stopped
+    environment:
+      REDISCLI_AUTH: ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+    command: ["redis-server", "--save", "60", "1", "--appendonly", "yes", "--appendfsync", "everysec", "--requirepass", "${REDIS_PASSWORD:?REDIS_PASSWORD is required}"]
+    volumes: ["redis_data:/data"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks: [application]
+    logging: *logging
+
+networks:
+  application:
+    driver: bridge
+volumes:
+  blue_data:
+  green_data:
+  postgres_data:
+  redis_data:
+  caddy_data:
+  caddy_config:

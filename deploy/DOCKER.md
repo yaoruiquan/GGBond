@@ -10,7 +10,7 @@ docker run -d \
   -p 8080:8080 \
   -e DATABASE_URL="postgres://user:pass@host:5432/sub2api" \
   -e REDIS_URL="redis://host:6379" \
-  ghcr.io/yaoruiquan/ggbondai:latest
+  ghcr.io/yaoruiquan/ggbond:latest
 ```
 
 ## Docker Compose
@@ -20,7 +20,7 @@ version: '3.8'
 
 services:
   sub2api:
-    image: ghcr.io/yaoruiquan/ggbondai:latest
+    image: ghcr.io/yaoruiquan/ggbond:latest
     ports:
       - "8080:8080"
     environment:
@@ -86,5 +86,5 @@ Docker restores existing containers after a host restart.
 
 ## Links
 
-- [GitHub Repository](https://github.com/yaoruiquan/GGbondai)
-- [Documentation](https://github.com/yaoruiquan/GGbondai#readme)
+- [GitHub Repository](https://github.com/yaoruiquan/GGBond)
+- [Documentation](https://github.com/yaoruiquan/GGBond#readme)
