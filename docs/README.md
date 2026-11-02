@@ -35,6 +35,7 @@
 - [文档维护规范](development/documentation.md)：开发交付时必须同步执行的维护规则。
 - [渠道监控 v2 安全默认值](operations/channel-monitor-v2-safe-defaults.md)：默认模式、渐进回填及设计边界，原文为批准实施的设计，不代表本次验收。
 - [GPT-5.5 退役](operations/OPENAI_GPT55_RETIREMENT.md)：ChatGPT 账号与 API Key 账号的适用区别、映射迁移与验证边界。
+- [可选蓝绿部署](../deploy/production/README.md)：单机 Caddy 显式切流、状态与回退门禁；实现和验证状态以文中记录为准。
 
 ### 项目、计划与合规
 

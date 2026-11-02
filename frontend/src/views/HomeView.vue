@@ -28,24 +28,25 @@
     </div>
 
     <header class="relative z-30">
-      <nav class="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-y-2 px-4 py-4 sm:px-6 lg:px-8">
-        <div class="flex min-w-0 items-center gap-3 sm:gap-6">
+      <nav class="mx-auto grid max-w-7xl grid-cols-[minmax(0,1fr)_auto] items-center gap-y-2 px-4 py-4 sm:px-6 lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] lg:px-8">
+        <div class="col-start-1 row-start-1 flex min-w-0 items-center">
           <router-link to="/" class="inline-flex min-w-0 items-center transition-transform hover:scale-105">
             <BrandLockup :name="siteName" :logo="siteLogo" compact class="max-w-[10rem] sm:max-w-[16rem]" />
           </router-link>
-          <router-link
-            v-if="showModelPlazaEntry"
-            to="/model-plaza"
-            class="inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1.5 text-sm font-semibold text-gray-600 transition-colors hover:bg-white hover:text-primary-600 dark:text-dark-300 dark:hover:bg-white/10 dark:hover:text-primary-300 sm:px-3"
-            :title="t('nav.modelPlaza')"
-            :aria-label="t('nav.modelPlaza')"
-          >
-            <Icon name="grid" size="sm" />
-            <span class="hidden sm:inline">{{ t('nav.modelPlaza') }}</span>
-          </router-link>
         </div>
 
-        <div class="flex items-center gap-1 sm:gap-2">
+        <router-link
+          v-if="showModelPlazaEntry"
+          to="/model-plaza"
+          class="model-plaza-entry col-span-2 col-start-1 row-start-2 inline-flex min-h-11 items-center justify-center gap-2 justify-self-center whitespace-nowrap rounded-lg px-3 py-2 text-base font-semibold text-gray-700 hover:text-primary-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary-500 dark:text-dark-200 dark:hover:text-primary-300 sm:text-lg lg:col-span-1 lg:col-start-2 lg:row-start-1"
+          :title="t('nav.modelPlaza')"
+          :aria-label="t('nav.modelPlaza')"
+        >
+          <Icon name="grid" size="md" class="model-plaza-icon" />
+          <span>{{ t('nav.modelPlaza') }}</span>
+        </router-link>
+
+        <div class="col-start-2 row-start-1 flex items-center justify-self-end gap-1 sm:gap-2 lg:col-start-3">
           <LocaleSwitcher />
           <a
             v-if="docUrl"
@@ -260,6 +261,45 @@ onMounted(() => {
 </script>
 
 <style scoped>
+.model-plaza-entry {
+  position: relative;
+  transition: color 0.2s ease;
+}
+
+.model-plaza-entry::after {
+  content: '';
+  position: absolute;
+  right: 0.75rem;
+  bottom: 0.25rem;
+  left: 0.75rem;
+  height: 2px;
+  border-radius: 2px;
+  background: currentColor;
+  transform: scaleX(0);
+  transition: transform 0.2s ease;
+}
+
+.model-plaza-entry:hover::after,
+.model-plaza-entry:focus-visible::after {
+  transform: scaleX(1);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .model-plaza-icon {
+    animation: plaza-float 3s ease-in-out infinite;
+  }
+}
+
+@keyframes plaza-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-3px);
+  }
+}
+
 .nav-icon {
   @apply rounded-full p-2 text-gray-500 transition-colors hover:bg-white hover:text-primary-600 dark:text-dark-300 dark:hover:bg-white/10 dark:hover:text-primary-300;
 }
@@ -290,6 +330,8 @@ onMounted(() => {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .model-plaza-entry,
+  .model-plaza-entry::after,
   .featured-enter-active,
   .featured-leave-active {
     transition: none;
