@@ -124,7 +124,7 @@ VITE_DEV_PORT=4000 pnpm run dev --host 127.0.0.1 --strictPort
 ### 第一批：数据边界与发布来源
 
 - [ ] 仅比较新旧配置的数据库、Redis 和数据目录是否隔离，不输出凭据；未确认隔离前不启动后端或执行迁移。
-- [ ] 统一 Release 镜像生产者、Compose 消费者、安装资源、在线更新和回滚指引：源码目标 `yaoruiquan/GGbondai`，GHCR 目标 `ghcr.io/yaoruiquan/ggbondai`。
+- [ ] 统一 Release 镜像生产者、Compose 消费者、安装资源、在线更新和回滚指引：源码目标 `yaoruiquan/GGBond`，GHCR 目标 `ghcr.io/yaoruiquan/ggbond`（以提交 `75f18b727` 的仓库名统一为准）。
 - [ ] 保留 `sub2api` 二进制、归档与服务名称兼容性，以及新上游 dry-run、固定源 SHA、下载鉴权和随机密码逻辑。
 - [ ] 通过离线测试或本地 dry-run 验证，不推送、不发布、不修改 remote、不操作生产。
 

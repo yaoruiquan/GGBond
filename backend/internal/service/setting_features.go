@@ -292,10 +292,14 @@ func parseAuditLogRetentionDays(value string) int {
 // GetSiteName returns the configured site name with a brand fallback.
 func (s *SettingService) GetSiteName(ctx context.Context) string {
 	value, err := s.settingRepo.GetValue(ctx, SettingKeySiteName)
-	if err != nil || value == "" {
+	if err != nil {
 		return defaultSiteName
 	}
-	return strings.TrimSpace(value)
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return defaultSiteName
+	}
+	return value
 }
 
 // GetDefaultConcurrency 获取默认并发量

@@ -63,6 +63,13 @@ func TestGetSiteName_MissingConfigurationFallsBackToDefaultBrand(t *testing.T) {
 	require.Equal(t, defaultSiteName, name)
 }
 
+func TestGetSiteName_WhitespaceConfigurationFallsBackToDefaultBrand(t *testing.T) {
+	repo := &siteNameRepoStub{values: map[string]string{SettingKeySiteName: " \t\n "}}
+	svc := NewSettingService(repo, &config.Config{})
+
+	require.Equal(t, defaultSiteName, svc.GetSiteName(context.Background()))
+}
+
 func TestGetSiteName_ExplicitSub2APIIsNotOverridden(t *testing.T) {
 	repo := &siteNameRepoStub{values: map[string]string{
 		SettingKeySiteName: "Sub2API",

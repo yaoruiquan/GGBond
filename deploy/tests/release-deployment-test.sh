@@ -9,6 +9,8 @@ from pathlib import Path
 import re
 
 repo = "yaoruiquan/GGBond"
+dockerfile = Path("deploy/Dockerfile").read_text()
+assert f'LABEL org.opencontainers.image.source="https://github.com/{repo}"' in dockerfile
 installer = Path("deploy/install.sh").read_text()
 assert f'GITHUB_REPO="{repo}"' in installer, "installer must use fork releases"
 assert f"Documentation=https://github.com/{repo}" in installer
