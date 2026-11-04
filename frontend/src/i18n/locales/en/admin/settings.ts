@@ -61,14 +61,14 @@ export default {
           },
         },
         modelPlaza: {
-          title: 'Model Plaza',
-          description: 'A public page showcasing available models and pricing by group. Disabled by default.',
-          enabled: 'Enable Model Plaza',
+          title: 'Model Market',
+          description: 'A public page showing prices for connected models. Disabled by default.',
+          enabled: 'Enable Model Market',
           enabledHint: 'When enabled, an entry appears in the header and the page is reachable at /model-plaza.',
           requireAuth: 'Require sign-in to access',
           requireAuthHint: 'When on, anonymous visitors are redirected to the login page; when off, the page is public and anonymous visitors only see non-exclusive groups.',
           priceDescription: 'Pricing notes (Markdown)',
-          priceDescriptionHint: 'Rendered at the top of the plaza page. Use it for billing rules, exchange rates, promotions, etc.',
+          priceDescriptionHint: 'Rendered at the top of the model market. Use it for billing rules, exchange rates, promotions, etc.',
         },
         pluginManagement: {
           title: 'Plugin Management',

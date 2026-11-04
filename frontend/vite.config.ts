@@ -81,7 +81,6 @@ export default defineConfig(({ mode }) => {
   // 加载环境变量
   const env = loadEnv(mode, process.cwd(), '')
   const backendUrl = env.VITE_DEV_PROXY_TARGET || 'http://localhost:8080'
-  const devPort = Number(env.VITE_DEV_PORT || 3000)
 
   return {
     plugins: [
@@ -152,7 +151,8 @@ export default defineConfig(({ mode }) => {
   },
     server: {
       host: '0.0.0.0',
-      port: devPort,
+      port: 4000,
+      strictPort: true,
       proxy: {
         '/api': {
           target: backendUrl,

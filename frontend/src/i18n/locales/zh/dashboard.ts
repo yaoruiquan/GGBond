@@ -655,13 +655,15 @@ export default {
 
   // Model Plaza (public group/model pricing showcase)
   modelPlaza: {
-    title: '模型广场',
-    description: '按分组浏览可用模型与价格',
+    title: '模型市场',
+    description: '按模型查看已接入模型的本站价格与官方参考价',
     loading: '加载中...',
-    empty: '暂无可展示的分组',
-    loadFailed: '加载模型广场失败',
+    empty: '暂无已接入的模型',
+    loadFailed: '加载模型市场失败',
     noSearchResult: '没有匹配的模型',
     anonymousHint: '登录后可查看你的专属分组与专属倍率',
+    mockPreview: '当前为预览数据，仅用于查看模型市场效果，不代表实际已接入模型。',
+    resultCount: '{count} 个价格项',
     filters: {
       platformLabel: '平台',
       groupLabel: '分组',
@@ -700,14 +702,22 @@ export default {
       timePricingRowHintPeak: '；本行价格未含高峰倍率，与高峰时段 {window} 重叠的部分实付再乘 ×{multiplier}',
       timePricingWeekdays: '工作日',
       timePricingRateHint: '生效倍率 {rate} × 时段倍率 {multiplier}',
-      paidPrice: '实付价格(折后)',
-      officialPrice: '官方价格',
-      rate: '折扣倍率',
+      paidPrice: '本站价格',
+      officialPrice: '官方参考价',
+      officialReference: '官方参考价',
+      rate: '倍率',
+      independentRate: '独立倍率 {rate}',
+      hasTimePricing: '含分时价格',
+      peakRate: '高峰时段另乘 {rate}',
+      tierCount: '{count} 个价格档位',
+      referenceUnavailable: '无官方参考价',
       unitPerMillion: '$ / 1M token',
       perUnitRequest: '/ 次',
       perUnitImage: '/ 张',
+      perUnitVideo: '/ 秒',
       perRequest: '按次计费',
-      perImage: '按图片计费'
+      perImage: '按图片计费',
+      perVideo: '按视频计费'
     },
     nav: {
       login: '登录',

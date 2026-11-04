@@ -157,6 +157,7 @@ docs/guides/*
 docs/development/*
 !docs/development/PLUGIN_DEVELOPMENT.md
 !docs/development/documentation.md
+!docs/development/model-market.md
 !docs/operations/
 docs/operations/*
 !docs/operations/channel-monitor-v2-safe-defaults.md

@@ -650,13 +650,15 @@ export default {
 
   // Model Plaza (public group/model pricing showcase)
   modelPlaza: {
-    title: 'Model Plaza',
-    description: 'Browse available models and pricing by group',
+    title: 'Model Market',
+    description: 'Compare connected model prices with official references',
     loading: 'Loading...',
-    empty: 'No groups to display',
-    loadFailed: 'Failed to load model plaza',
+    empty: 'No connected models',
+    loadFailed: 'Failed to load model market',
     noSearchResult: 'No matching models',
     anonymousHint: 'Sign in to see your exclusive groups and personal rates',
+    mockPreview: 'Preview data is enabled. It is for reviewing the layout only and does not represent connected models.',
+    resultCount: '{count} price entries',
     filters: {
       platformLabel: 'Platform',
       groupLabel: 'Group',
@@ -696,14 +698,22 @@ export default {
         '; prices in this row exclude the peak-hour rate — where this period overlaps the peak hours {window}, the overlapping portion is additionally multiplied by ×{multiplier}',
       timePricingWeekdays: 'Weekdays',
       timePricingRateHint: 'Effective rate {rate} × period multiplier {multiplier}',
-      paidPrice: 'Your Price (Discounted)',
-      officialPrice: 'Official Price',
+      paidPrice: 'Your Price',
+      officialPrice: 'Official Reference',
+      officialReference: 'Official Reference',
       rate: 'Rate',
+      independentRate: 'Independent rate {rate}',
+      hasTimePricing: 'Time-based pricing',
+      peakRate: 'Peak hours add ×{rate}',
+      tierCount: '{count} pricing tiers',
+      referenceUnavailable: 'No official reference price',
       unitPerMillion: '$ / 1M tokens',
       perUnitRequest: '/ request',
       perUnitImage: '/ image',
+      perUnitVideo: '/ second',
       perRequest: 'Per request',
-      perImage: 'Per image'
+      perImage: 'Per image',
+      perVideo: 'Per video'
     },
     nav: {
       login: 'Sign In',
