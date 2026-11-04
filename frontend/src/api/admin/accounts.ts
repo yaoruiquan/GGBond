@@ -310,6 +310,36 @@ export async function testAccount(id: number): Promise<{
   return data
 }
 
+export interface OpenAIVideoTaskState {
+  id: string
+  status: string
+  error?: string
+}
+
+export async function getOpenAIVideoTask(
+  accountId: number,
+  taskId: string,
+  options?: { signal?: AbortSignal }
+): Promise<OpenAIVideoTaskState> {
+  const { data } = await apiClient.get<OpenAIVideoTaskState>(
+    `/admin/accounts/${accountId}/video-tasks/${encodeURIComponent(taskId)}`,
+    { signal: options?.signal }
+  )
+  return data
+}
+
+export async function getOpenAIVideoContent(
+  accountId: number,
+  taskId: string,
+  options?: { signal?: AbortSignal }
+): Promise<Blob> {
+  const { data } = await apiClient.get<Blob>(
+    `/admin/accounts/${accountId}/video-tasks/${encodeURIComponent(taskId)}/content`,
+    { responseType: 'blob', timeout: 180000, signal: options?.signal }
+  )
+  return data
+}
+
 /**
  * Refresh account credentials
  * @param id - Account ID

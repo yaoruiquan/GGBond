@@ -25,6 +25,22 @@ After the upstream accepts a task, its ID is bound in Redis to the selected acco
 
 Usage is recorded once after successful task submission, using the upstream account and task ID for billing deduplication. Status checks and content downloads are not billed again. Content responses preserve range and cache headers and stream the upstream body. Video duration is not capped at Grok's 15-second billing limit for other OpenAI-compatible providers.
 
+## Administrator account test
+
+The account test dialog offers video testing for eligible OpenAI API Key accounts. Select a video model and submit a prompt with duration and size (defaults: 4 seconds, `1280x720`). This creates one upstream task and may incur provider charges. Acceptance confirms submission; it does not mean the video is ready. The probe never retries a submission automatically and does not reset account cooldowns merely because a task was accepted.
+
+The task ID is retained in the browser session per account. Refresh an existing task or paste its ID to resume checking; completed tasks can be previewed and downloaded. Closing the dialog stops local requests without cancelling the provider task.
+
+Administrator endpoints use the selected account's credentials directly:
+
+| Operation | Endpoint |
+| --- | --- |
+| Submit | `POST /api/v1/admin/accounts/{account_id}/test` with `mode: "video"` and `video: {seconds: 4, size: "1280x720"}` |
+| Query | `GET /api/v1/admin/accounts/{account_id}/video-tasks/{task_id}` |
+| Preview/download | `GET /api/v1/admin/accounts/{account_id}/video-tasks/{task_id}/content` |
+
+These routes require administrator authentication. They do not create public API-key task bindings or charge relay-user balances. Status responses expose only the task ID, status, and sanitized error. Content is streamed with Range support and private no-store caching; account credentials stay on the server.
+
 ```bash
 curl "$RELAY_BASE_URL/v1/videos" \
   -H "Authorization: Bearer $RELAY_API_KEY" \

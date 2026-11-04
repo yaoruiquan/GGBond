@@ -220,4 +220,50 @@ describe('AccountTestModal', () => {
       mode: 'compact'
     })
   })
+
+  it('OpenAI 视频测试默认启用视频模式并保留接受的任务 ID', async () => {
+    getAvailableModels.mockResolvedValue([
+      { id: 'sora-2', display_name: 'Sora 2' }
+    ])
+    global.fetch = vi.fn().mockResolvedValue(
+      createStreamResponse([
+        'data: {"type":"test_start","model":"sora-2"}\n',
+        'data: {"type":"video_task","task_id":"video_task_42","status":"queued"}\n'
+      ])
+    ) as any
+
+    const wrapper = mountModal({
+      id: 42,
+      name: 'OpenAI Video Account',
+      platform: 'openai',
+      type: 'apikey',
+      status: 'active',
+      credentials: { openai_capabilities: ['videos'] }
+    })
+    await wrapper.setProps({ show: true })
+    await flushPromises()
+
+    expect((wrapper.vm as any).testMode).toBe('video')
+    expect(wrapper.text()).toContain('admin.accounts.openai.videoSeconds')
+    await (wrapper.vm as any).startTest()
+    await flushPromises()
+    await flushPromises()
+
+    expect(global.fetch).toHaveBeenCalledTimes(1)
+    const [, request] = (global.fetch as any).mock.calls[0]
+    expect(JSON.parse(request.body)).toMatchObject({
+      model_id: 'sora-2',
+      mode: 'video',
+      video: { seconds: 4, size: '1280x720' }
+    })
+    expect((wrapper.vm as any).videoTaskId).toBe('video_task_42')
+    expect((wrapper.vm as any).status).toBe('success')
+    expect(wrapper.text()).toContain('admin.accounts.testCompleted')
+    expect(wrapper.text()).toContain('video_task_42')
+
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    await (wrapper.vm as any).startTest()
+    expect(confirmSpy).toHaveBeenCalledOnce()
+    expect(global.fetch).toHaveBeenCalledTimes(1)
+  })
 })

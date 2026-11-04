@@ -81,6 +81,36 @@
         />
       </div>
 
+      <div v-if="supportsOpenAIVideo && testMode === 'video'" class="grid grid-cols-2 gap-3">
+        <label class="space-y-1 text-sm text-gray-700 dark:text-gray-300">
+          <span>{{ t('admin.accounts.openai.videoSeconds') }}</span>
+          <input v-model.number="videoSeconds" type="number" min="1" max="20" class="form-input w-full" :disabled="status === 'connecting'" />
+        </label>
+        <label class="space-y-1 text-sm text-gray-700 dark:text-gray-300">
+          <span>{{ t('admin.accounts.openai.videoSize') }}</span>
+          <select v-model="videoSize" class="form-input w-full" :disabled="status === 'connecting'">
+            <option value="1280x720">1280x720</option>
+            <option value="720x1280">720x1280</option>
+          </select>
+        </label>
+      </div>
+      <div v-if="testMode === 'video' && videoTaskId" class="space-y-2 rounded-lg border border-gray-200 p-3 text-sm dark:border-dark-500">
+        <div class="flex items-center justify-between gap-3">
+          <span>{{ t('admin.accounts.openai.videoTaskStatus', { status: videoTaskStatus || 'queued' }) }}</span>
+          <button class="btn btn-secondary btn-sm" :disabled="videoBusy" @click="refreshVideoTask">{{ t('admin.accounts.openai.refreshVideoTask') }}</button>
+        </div>
+        <p v-if="videoTaskError" class="text-red-500">{{ videoTaskError }}</p>
+        <div class="flex flex-wrap items-center gap-2">
+          <button v-if="isOpenAIVideoReady && !generatedVideos.length" class="btn btn-secondary btn-sm" :disabled="videoBusy" @click="loadVideoContent"><Icon name="download" size="sm" />{{ t('admin.accounts.openai.loadVideo') }}</button>
+          <button class="btn btn-secondary btn-sm" @click="copyVideoTaskId"><Icon name="copy" size="sm" />{{ t('admin.accounts.openai.copyVideoTaskId') }}</button>
+        </div>
+        <div class="break-all font-mono text-xs text-gray-500">{{ videoTaskId }}</div>
+      </div>
+      <div v-else-if="testMode === 'video'" class="flex gap-2">
+        <input v-model="videoTaskIdInput" class="form-input min-w-0 flex-1 font-mono text-xs" :placeholder="t('admin.accounts.openai.videoTaskIdPlaceholder')" />
+        <button class="btn btn-secondary btn-sm" :disabled="!videoTaskIdInput.trim()" @click="restoreEnteredVideoTask"><Icon name="search" size="sm" />{{ t('admin.accounts.openai.restoreVideoTask') }}</button>
+      </div>
+
       <div v-if="supportsPromptInput" class="space-y-1.5">
         <TextArea
           v-model="testPrompt"
@@ -274,6 +304,7 @@
           class="overflow-hidden rounded-xl border border-gray-200 bg-black dark:border-dark-500"
         >
           <video :src="video.url" controls class="max-h-[360px] w-full" :type="video.mimeType" />
+          <a :href="video.url" :download="`video-${videoTaskId || index + 1}.mp4`" class="block bg-white px-3 py-2 text-sm text-primary-600 dark:bg-dark-700">{{ t('admin.accounts.openai.downloadVideo') }}</a>
           <div class="border-t border-gray-100 bg-white px-3 py-1.5 text-xs text-gray-500 dark:border-dark-500 dark:bg-dark-700 dark:text-gray-300">
             {{ video.mimeType || 'video/*' }}
           </div>
@@ -353,6 +384,10 @@
             {{
               status === 'connecting'
                 ? t('admin.accounts.testing')
+              : isOpenAIAccount && testMode === 'video'
+                ? videoTaskId
+                  ? t('admin.accounts.openai.createAnotherVideoTask')
+                  : t('admin.accounts.openai.submitVideoTask')
                 : status === 'idle'
                   ? t('admin.accounts.startTest')
                   : t('admin.accounts.retry')
@@ -375,6 +410,7 @@ import { useClipboard } from '@/composables/useClipboard'
 import { buildApiUrl } from '@/api/client'
 import { ADMIN_UI_REQUEST_HEADER } from '@/api/adminUIRequest'
 import { adminAPI } from '@/api/admin'
+import { getOpenAIVideoContent, getOpenAIVideoTask } from '@/api/admin/accounts'
 import type { Account, ClaudeModel } from '@/types'
 
 const { t } = useI18n()
@@ -413,7 +449,17 @@ const generatedImages = ref<PreviewMedia[]>([])
 const generatedAudios = ref<PreviewMedia[]>([])
 const generatedVideos = ref<PreviewMedia[]>([])
 const previewImageUrl = ref('')
-const testMode = ref<'default' | 'compact'>('default')
+const testMode = ref<'default' | 'compact' | 'video'>('default')
+const videoSeconds = ref(4)
+const videoSize = ref('1280x720')
+const videoTaskId = ref('')
+const videoTaskStatus = ref('')
+const videoTaskError = ref('')
+const videoTaskIdInput = ref('')
+const videoBusy = ref(false)
+let videoController: AbortController | null = null
+const isOpenAIVideoReady = computed(() => ['completed', 'succeeded'].includes(videoTaskStatus.value.toLowerCase()))
+const videoTaskStorageKey = computed(() => props.account ? `sub2api:admin:openai-video-task:${props.account.id}` : '')
 const grokTestMode = ref<'text' | 'image' | 'video' | 'search' | 'tts' | 'stt' | 'realtime'>('text')
 const uploadImageDataURL = ref('')
 const uploadImagePreview = ref('')
@@ -424,9 +470,15 @@ const imageFileInput = ref<HTMLInputElement | null>(null)
 const audioFileInput = ref<HTMLInputElement | null>(null)
 const isOpenAIAccount = computed(() => props.account?.platform === 'openai')
 const isGrokAccount = computed(() => props.account?.platform === 'grok')
+const supportsOpenAIVideo = computed(() => {
+  if (!isOpenAIAccount.value || props.account?.type !== 'apikey') return false
+  const capabilities = props.account.credentials?.openai_capabilities
+  return !Array.isArray(capabilities) || capabilities.length === 0 || capabilities.includes('videos')
+})
 const openAITestModeOptions = computed(() => [
   { value: 'default', label: t('admin.accounts.openai.testModeDefault') },
-  { value: 'compact', label: t('admin.accounts.openai.testModeCompact') }
+  { value: 'compact', label: t('admin.accounts.openai.testModeCompact') },
+  ...(supportsOpenAIVideo.value ? [{ value: 'video', label: t('admin.accounts.openai.testModeVideo') }] : [])
 ])
 const grokTestModeOptions = computed(() => [
   { value: 'text', label: t('admin.accounts.grok.testModeText') },
@@ -498,7 +550,7 @@ const modelOptionsForMode = computed(() => {
 
 const supportsPromptInput = computed(() => {
   if (!isGrokAccount.value) {
-    return supportsImageTest.value
+    return supportsImageTest.value || (isOpenAIAccount.value && testMode.value === 'video')
   }
   return (
     grokTestMode.value === 'image' ||
@@ -597,6 +649,7 @@ const clearMediaUploads = () => {
 }
 
 const promptInputLabel = computed(() => {
+  if (isOpenAIAccount.value && testMode.value === 'video') return t('admin.accounts.videoPromptLabel')
   if (supportsGrokVideoTest.value || grokTestMode.value === 'video') {
     return t('admin.accounts.videoPromptLabel')
   }
@@ -613,6 +666,7 @@ const promptInputLabel = computed(() => {
 })
 
 const promptInputPlaceholder = computed(() => {
+  if (isOpenAIAccount.value && testMode.value === 'video') return t('admin.accounts.videoPromptPlaceholder')
   if (grokTestMode.value === 'video') {
     return t('admin.accounts.videoPromptPlaceholder')
   }
@@ -629,6 +683,7 @@ const promptInputPlaceholder = computed(() => {
 })
 
 const promptInputHint = computed(() => {
+  if (isOpenAIAccount.value && testMode.value === 'video') return t('admin.accounts.openai.videoTestHint')
   if (grokTestMode.value === 'video') {
     return t('admin.accounts.videoTestHint')
   }
@@ -669,6 +724,7 @@ const testModeSummary = computed(() => {
         return t('admin.accounts.grok.textTestMode')
     }
   }
+  if (isOpenAIAccount.value && testMode.value === 'video') return t('admin.accounts.videoTestMode')
   if (supportsImageTest.value) return t('admin.accounts.imageTestMode')
   return t('admin.accounts.testPrompt')
 })
@@ -702,6 +758,10 @@ const sortTestModels = (models: ClaudeModel[]) => {
 
 // Load available models when modal opens
 const applyDefaultPromptForMode = () => {
+  if (isOpenAIAccount.value && testMode.value === 'video' && !testPrompt.value.trim()) {
+    testPrompt.value = t('admin.accounts.videoPromptDefault')
+    return
+  }
   if (!supportsPromptInput.value) return
   if (testPrompt.value.trim()) return
   if (grokTestMode.value === 'video') {
@@ -742,12 +802,18 @@ watch(
       grokTestMode.value = 'text'
       resetState()
       await loadAvailableModels()
+      restoreVideoTask()
+      if (supportsOpenAIVideo.value) {
+        const caps = props.account.credentials?.openai_capabilities
+        if (Array.isArray(caps) && caps.length === 1 && caps[0] === 'videos') testMode.value = 'video'
+      }
       if (isGrokAccount.value) {
         pickDefaultModelForMode()
         applyDefaultPromptForMode()
       }
     } else {
       abortStream()
+      cancelVideoRequest()
     }
   }
 )
@@ -797,13 +863,103 @@ const resetState = () => {
   errorMessage.value = ''
   generatedImages.value = []
   generatedAudios.value = []
-  generatedVideos.value = []
+  clearGeneratedVideos()
   previewImageUrl.value = ''
 }
 
 const handleClose = () => {
   abortStream()
+  cancelVideoRequest()
+  clearGeneratedVideos()
   emit('close')
+}
+
+const cancelVideoRequest = () => {
+  videoController?.abort()
+  videoController = null
+  videoBusy.value = false
+}
+
+const restoreVideoTask = () => {
+  videoTaskId.value = ''
+  videoTaskStatus.value = ''
+  videoTaskError.value = ''
+  videoTaskIdInput.value = ''
+  clearGeneratedVideos()
+  if (!videoTaskStorageKey.value) return
+  try {
+    const saved = sessionStorage.getItem(videoTaskStorageKey.value)
+    if (!saved) return
+    const task = JSON.parse(saved) as { id?: string; status?: string }
+    videoTaskId.value = task.id || ''
+    videoTaskIdInput.value = task.id || ''
+    videoTaskStatus.value = task.status || ''
+  } catch {
+    sessionStorage.removeItem(videoTaskStorageKey.value)
+  }
+}
+
+const restoreEnteredVideoTask = async () => {
+  const id = videoTaskIdInput.value.trim()
+  if (!id) return
+  videoTaskId.value = id
+  videoTaskStatus.value = ''
+  saveVideoTask()
+  await refreshVideoTask()
+}
+
+const clearGeneratedVideos = () => {
+  for (const video of generatedVideos.value) URL.revokeObjectURL(video.url)
+  generatedVideos.value = []
+}
+
+const saveVideoTask = () => {
+  if (!videoTaskId.value || !videoTaskStorageKey.value) return
+  try { sessionStorage.setItem(videoTaskStorageKey.value, JSON.stringify({ id: videoTaskId.value, status: videoTaskStatus.value })) } catch { /* Ignore unavailable storage. */ }
+}
+
+const refreshVideoTask = async () => {
+  if (!props.account || !videoTaskId.value || videoBusy.value) return
+  cancelVideoRequest()
+  const controller = new AbortController()
+  videoController = controller
+  videoBusy.value = true
+  try {
+    const task = await getOpenAIVideoTask(props.account.id, videoTaskId.value, { signal: controller.signal })
+    if (!controller.signal.aborted) {
+      videoTaskStatus.value = task.status
+      videoTaskError.value = task.error || ''
+      saveVideoTask()
+    }
+  } catch (error) {
+    if (!controller.signal.aborted) videoTaskError.value = error instanceof Error ? error.message : t('common.unknownError')
+  } finally {
+    if (videoController === controller) videoController = null
+    if (videoController === null) videoBusy.value = false
+  }
+}
+
+const copyVideoTaskId = () => copyToClipboard(videoTaskId.value, t('admin.accounts.openai.copyVideoTaskId'))
+
+const loadVideoContent = async () => {
+  if (!props.account || !videoTaskId.value || !isOpenAIVideoReady.value || videoBusy.value) return
+  cancelVideoRequest()
+  const controller = new AbortController()
+  videoController = controller
+  const taskId = videoTaskId.value
+  videoBusy.value = true
+  try {
+    const blob = await getOpenAIVideoContent(props.account.id, taskId, { signal: controller.signal })
+    if (!controller.signal.aborted && taskId === videoTaskId.value) {
+      clearGeneratedVideos()
+      generatedVideos.value = [{ url: URL.createObjectURL(blob), mimeType: blob.type || 'video/mp4' }]
+    }
+  } catch (error) {
+    if (!controller.signal.aborted) videoTaskError.value = error instanceof Error ? error.message : t('common.unknownError')
+  } finally {
+    if (videoController === controller) videoController = null
+    if (videoController === null) videoBusy.value = false
+  }
 }
 
 const abortStream = () => {
@@ -827,6 +983,12 @@ const scrollToBottom = async () => {
 
 const startTest = async () => {
   if (!props.account || !canStartTest.value) return
+  if (
+    isOpenAIAccount.value &&
+    testMode.value === 'video' &&
+    videoTaskId.value &&
+    !window.confirm(t('admin.accounts.openai.confirmNewVideoTask'))
+  ) return
 
   resetState()
   status.value = 'connecting'
@@ -850,12 +1012,14 @@ const startTest = async () => {
       mode?: string
       image_data_url?: string
       audio_data_url?: string
+      video?: { seconds: number; size: string }
     } = {
       model_id: showModelSelect.value ? selectedModelId.value : '',
       prompt: supportsPromptInput.value ? testPrompt.value.trim() : ''
     }
     if (isOpenAIAccount.value) {
       requestBody.mode = testMode.value
+      if (testMode.value === 'video') requestBody.video = { seconds: videoSeconds.value, size: videoSize.value }
     }
     if (isGrokAccount.value) {
       // Always send explicit Grok mode. search/tts/stt/realtime are standalone
@@ -947,6 +1111,8 @@ const handleEvent = (event: {
   image_url?: string
   audio_url?: string
   video_url?: string
+  task_id?: string
+  status?: string
   mime_type?: string
 }) => {
   switch (event.type) {
@@ -1014,6 +1180,14 @@ const handleEvent = (event: {
         })
         addLine(t('admin.accounts.videoReceived', { count: generatedVideos.value.length }), 'text-purple-300')
       }
+      break
+
+    case 'video_task':
+      videoTaskId.value = event.task_id || ''
+      videoTaskStatus.value = event.status || 'queued'
+      saveVideoTask()
+      addLine(t('admin.accounts.openai.videoTaskAccepted', { id: videoTaskId.value }), 'text-cyan-300')
+      status.value = 'success'
       break
 
     case 'status':
