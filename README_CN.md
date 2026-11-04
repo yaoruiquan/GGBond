@@ -750,6 +750,8 @@ OAuth / Setup Token 图片请求使用 Responses 主控模型调用 `image_gener
 
 升级后，无模型限制的账号自动支持新模型。已有显式账号映射或分组白名单需要加入两个 2.5 模型（日期快照按需加入）；升级不会自动扩大管理员设置的模型权限。新模型内置价格包含官方文本输入、图片输入和图片输出 token 费率，远端价格表尚未更新时使用内置 2.5 价格；实际按次或按 token 计费仍由既有分组/渠道配置决定。
 
+OpenAI 分组也支持通过 OpenAI API Key 上游调用异步视频接口：`POST /v1/videos` 提交任务、`GET /v1/videos/{id}` 查询状态、`GET /v1/videos/{id}/content` 下载内容。OpenAI-compatible 视频接入和计费配置见 [接口说明](backend/OPENAI_VIDEOS.md)。Grok 分组继续使用现有 xAI 视频接口。
+
 ## 简易模式
 
 简易模式适合个人开发者或内部团队快速使用，不依赖完整 SaaS 功能。

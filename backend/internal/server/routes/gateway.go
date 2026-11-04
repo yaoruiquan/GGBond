@@ -105,7 +105,7 @@ func RegisterGatewayRoutes(
 			},
 		})
 	}
-	videoStatusHandler := func(c *gin.Context) {
+	grokVideoStatusHandler := func(c *gin.Context) {
 		// Video status requests do not carry a model, so composite groups cannot
 		// be resolved by compositeTargetPlatformMiddleware. Route them through
 		// the Grok handler and let scheduler/account selection enforce capacity.
@@ -121,7 +121,7 @@ func RegisterGatewayRoutes(
 			},
 		})
 	}
-	videoContentHandler := func(c *gin.Context) {
+	grokVideoContentHandler := func(c *gin.Context) {
 		// Video content requests do not carry a model, so composite groups cannot
 		// be resolved by compositeTargetPlatformMiddleware. Route them through
 		// the Grok handler just like video status lookups.
@@ -136,6 +136,20 @@ func RegisterGatewayRoutes(
 				"message": "Videos API is not supported for this platform",
 			},
 		})
+	}
+	videoStatusHandler := func(c *gin.Context) {
+		if getGroupPlatform(c) == service.PlatformOpenAI {
+			h.OpenAIGateway.OpenAIVideos(c)
+			return
+		}
+		grokVideoStatusHandler(c)
+	}
+	videoContentHandler := func(c *gin.Context) {
+		if getGroupPlatform(c) == service.PlatformOpenAI {
+			h.OpenAIGateway.OpenAIVideos(c)
+			return
+		}
+		grokVideoContentHandler(c)
 	}
 	videoEditHandler := func(c *gin.Context) {
 		if getGroupPlatform(c) == service.PlatformGrok {
@@ -174,6 +188,13 @@ func RegisterGatewayRoutes(
 			}
 			next(c)
 		}
+	}
+	videoSubmitHandler := func(c *gin.Context) {
+		if getGroupPlatform(c) == service.PlatformOpenAI {
+			h.OpenAIGateway.OpenAIVideos(c)
+			return
+		}
+		videoGenerationHandler(c)
 	}
 
 	// API网关（Claude API兼容）
@@ -267,16 +288,17 @@ func RegisterGatewayRoutes(
 		gateway.DELETE("/images/batches/:id/outputs", h.BatchImage.DeleteOutputs)
 		// OpenAI-compatible clients may create through /videos; xAI receives the
 		// canonical /videos/generations route inside the Grok media forwarder.
-		gateway.POST("/videos", videoGenerationHandler)
+		gateway.POST("/videos", videoSubmitHandler)
 		gateway.POST("/videos/generations", videoGenerationHandler)
+		gateway.POST("/video/generations", videoSubmitHandler)
 		gateway.POST("/videos/edits", videoEditHandler)
 		gateway.POST("/videos/extensions", videoExtensionHandler)
-		gateway.GET("/videos/generations/:request_id/content", videoContentHandler)
-		gateway.GET("/videos/edits/:request_id/content", videoContentHandler)
-		gateway.GET("/videos/extensions/:request_id/content", videoContentHandler)
-		gateway.GET("/videos/generations/:request_id", videoStatusHandler)
-		gateway.GET("/videos/edits/:request_id", videoStatusHandler)
-		gateway.GET("/videos/extensions/:request_id", videoStatusHandler)
+		gateway.GET("/videos/generations/:request_id/content", grokVideoContentHandler)
+		gateway.GET("/videos/edits/:request_id/content", grokVideoContentHandler)
+		gateway.GET("/videos/extensions/:request_id/content", grokVideoContentHandler)
+		gateway.GET("/videos/generations/:request_id", grokVideoStatusHandler)
+		gateway.GET("/videos/edits/:request_id", grokVideoStatusHandler)
+		gateway.GET("/videos/extensions/:request_id", grokVideoStatusHandler)
 		gateway.GET("/videos/:request_id", videoStatusHandler)
 		gateway.GET("/videos/:request_id/content", videoContentHandler)
 
@@ -423,16 +445,17 @@ func RegisterGatewayRoutes(
 	rootRoute(http.MethodPost, "/images/generations/async", bodyLimit, h.AsyncImage.Submit)
 	rootRoute(http.MethodPost, "/images/edits/async", bodyLimit, h.AsyncImage.Submit)
 	rootRoute(http.MethodGet, "/images/tasks/:task_id", bodyLimit, h.AsyncImage.Get)
-	rootRoute(http.MethodPost, "/videos", bodyLimit, videoGenerationHandler)
+	rootRoute(http.MethodPost, "/videos", bodyLimit, videoSubmitHandler)
 	rootRoute(http.MethodPost, "/videos/generations", bodyLimit, videoGenerationHandler)
+	rootRoute(http.MethodPost, "/video/generations", bodyLimit, videoSubmitHandler)
 	rootRoute(http.MethodPost, "/videos/edits", bodyLimit, videoEditHandler)
 	rootRoute(http.MethodPost, "/videos/extensions", bodyLimit, videoExtensionHandler)
-	rootRoute(http.MethodGet, "/videos/generations/:request_id/content", bodyLimit, videoContentHandler)
-	rootRoute(http.MethodGet, "/videos/edits/:request_id/content", bodyLimit, videoContentHandler)
-	rootRoute(http.MethodGet, "/videos/extensions/:request_id/content", bodyLimit, videoContentHandler)
-	rootRoute(http.MethodGet, "/videos/generations/:request_id", bodyLimit, videoStatusHandler)
-	rootRoute(http.MethodGet, "/videos/edits/:request_id", bodyLimit, videoStatusHandler)
-	rootRoute(http.MethodGet, "/videos/extensions/:request_id", bodyLimit, videoStatusHandler)
+	rootRoute(http.MethodGet, "/videos/generations/:request_id/content", bodyLimit, grokVideoContentHandler)
+	rootRoute(http.MethodGet, "/videos/edits/:request_id/content", bodyLimit, grokVideoContentHandler)
+	rootRoute(http.MethodGet, "/videos/extensions/:request_id/content", bodyLimit, grokVideoContentHandler)
+	rootRoute(http.MethodGet, "/videos/generations/:request_id", bodyLimit, grokVideoStatusHandler)
+	rootRoute(http.MethodGet, "/videos/edits/:request_id", bodyLimit, grokVideoStatusHandler)
+	rootRoute(http.MethodGet, "/videos/extensions/:request_id", bodyLimit, grokVideoStatusHandler)
 	rootRoute(http.MethodGet, "/videos/:request_id", bodyLimit, videoStatusHandler)
 	rootRoute(http.MethodGet, "/videos/:request_id/content", bodyLimit, videoContentHandler)
 

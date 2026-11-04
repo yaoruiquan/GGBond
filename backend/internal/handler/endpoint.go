@@ -111,6 +111,8 @@ func NormalizeInboundEndpoint(path string) string {
 		return EndpointVideosEdits
 	case strings.Contains(path, EndpointVideosExtensions) || strings.Contains(path, "/videos/extensions"):
 		return EndpointVideosExtensions
+	case strings.Contains(path, "/video/generations"):
+		return EndpointVideos
 	case strings.Contains(path, EndpointVideos) || strings.Contains(path, "/videos/"):
 		return EndpointVideos
 	case strings.Contains(path, EndpointResponsesCompact) || isResponsesCompactAliasPath(path):

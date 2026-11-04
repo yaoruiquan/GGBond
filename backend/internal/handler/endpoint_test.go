@@ -36,6 +36,8 @@ func TestNormalizeInboundEndpoint(t *testing.T) {
 		{"/v1/images/tasks/imgtask_123", EndpointImageTasks},
 		{"/v1/videos/generations", EndpointVideosGenerations},
 		{"/v1/videos/req_123", EndpointVideos},
+		{"/v1/video/generations", EndpointVideos},
+		{"/video/generations", EndpointVideos},
 		{"/v1beta/models", EndpointGeminiModels},
 		{"/v1beta/cachedContents", EndpointGeminiCachedContents},
 		{"/v1beta/cachedContents/gfo2i2haszm3wbwiyivyok5cyddubfwsr77efg7h", EndpointGeminiCachedContents},

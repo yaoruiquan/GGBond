@@ -492,7 +492,7 @@ describe('BulkEditAccountModal', () => {
     })
   })
 
-  it('端点能力默认值提交 null，表示恢复两个默认端点', async () => {
+  it('preserves explicit text and embeddings capabilities without enabling videos', async () => {
     const wrapper = mountModal({
       selectedPlatforms: ['openai'],
       selectedTypes: ['apikey']
@@ -503,7 +503,7 @@ describe('BulkEditAccountModal', () => {
     await flushPromises()
 
     expect(adminAPI.accounts.bulkUpdate).toHaveBeenCalledWith([1, 2], {
-      credentials: { openai_capabilities: null }
+      credentials: { openai_capabilities: ['chat_completions', 'embeddings'] }
     })
   })
 
@@ -557,15 +557,15 @@ describe('BulkEditAccountModal', () => {
     })
   })
 
-  it('persists Seedance in a two-capability bulk update', async () => {
+  it.each(['seedance', 'videos'])('persists %s in a two-capability bulk update', async (capability) => {
     const wrapper = mountModal({ selectedPlatforms: ['openai'], selectedTypes: ['apikey'] })
     await wrapper.get('#bulk-edit-openai-endpoint-capabilities-enabled').setValue(true)
     await wrapper.get('[data-testid="bulk-edit-openai-endpoint-capability-embeddings"]').setValue(false)
-    await wrapper.get('[data-testid="bulk-edit-openai-endpoint-capability-seedance"]').setValue(true)
+    await wrapper.get(`[data-testid="bulk-edit-openai-endpoint-capability-${capability}"]`).setValue(true)
     await wrapper.get('#bulk-edit-account-form').trigger('submit.prevent')
     await flushPromises()
     expect(adminAPI.accounts.bulkUpdate).toHaveBeenCalledWith([1, 2], {
-      credentials: { openai_capabilities: ['chat_completions', 'seedance'] }
+      credentials: { openai_capabilities: ['chat_completions', capability] }
     })
   })
 

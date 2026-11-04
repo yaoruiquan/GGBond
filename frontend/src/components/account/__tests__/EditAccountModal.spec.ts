@@ -1433,21 +1433,22 @@ describe('EditAccountModal', () => {
 	  expect(updateAccountMock.mock.calls[0]?.[1]?.extra?.auto_pause_7d_disabled).toBeUndefined()
 	})
 
-  it('preserves Seedance when exactly two endpoint capabilities are selected', async () => {
+  it.each(['seedance', 'videos'])('preserves %s when exactly two endpoint capabilities are selected', async (capability) => {
     const account = buildAccount()
-    account.credentials.openai_capabilities = ['chat_completions', 'seedance']
+    account.credentials.openai_capabilities = ['chat_completions', capability]
     updateAccountMock.mockReset()
     checkMixedChannelRiskMock.mockReset()
     checkMixedChannelRiskMock.mockResolvedValue({ has_risk: false })
     updateAccountMock.mockResolvedValue(account)
     const wrapper = mountModal(account)
-    expect(wrapper.get<HTMLInputElement>('[data-testid="openai-endpoint-capability-seedance"]').element.checked).toBe(true)
+    expect(wrapper.get<HTMLInputElement>(`[data-testid="openai-endpoint-capability-${capability}"]`).element.checked).toBe(true)
     await wrapper.get('form#edit-account-form').trigger('submit.prevent')
-    expect(updateAccountMock.mock.calls[0]?.[1]?.credentials?.openai_capabilities).toEqual(['chat_completions', 'seedance'])
+    expect(updateAccountMock.mock.calls[0]?.[1]?.credentials?.openai_capabilities).toEqual(['chat_completions', capability])
   })
 
   it('keeps at least one OpenAI APIKey endpoint capability selected', async () => {
     const account = buildAccount()
+    account.credentials.openai_capabilities = ['chat_completions', 'embeddings']
     updateAccountMock.mockReset()
     checkMixedChannelRiskMock.mockReset()
     checkMixedChannelRiskMock.mockResolvedValue({ has_risk: false })
