@@ -7,6 +7,7 @@ import enSettings from "@/i18n/locales/en/admin/settings";
 import zhCommon from "@/i18n/locales/zh/common";
 import zhSettings from "@/i18n/locales/zh/admin/settings";
 import SettingsView from "../SettingsView.vue";
+import ContactMethodsEditor from "@/components/admin/ContactMethodsEditor.vue";
 
 const {
   getSettings,
@@ -763,6 +764,64 @@ describe("admin SettingsView payment visible method controls", () => {
     expect(updateSettings).toHaveBeenCalledWith(
       expect.objectContaining({ compact_home_enabled: true }),
     );
+  });
+
+  it("loads and publishes home contacts, then explicitly clears the list", async () => {
+    const original = { id: "support", label: "客服", text: "old-contact", image_data_url: "", enabled: true };
+    getSettings.mockResolvedValue({ ...baseSettingsResponse, home_contact_enabled: false, contact_methods: [original] });
+    const wrapper = mountView();
+    await flushPromises();
+    const editor = wrapper.getComponent(ContactMethodsEditor);
+    expect(editor.props("modelValue")).toEqual([original]);
+    const updated = { ...original, text: "new-contact" };
+    editor.vm.$emit("update:modelValue", [updated]);
+    await wrapper.get('[data-testid="home-contact-toggle"]').setValue(true);
+    await wrapper.find("form").trigger("submit.prevent");
+    await flushPromises();
+    expect(updateSettings).toHaveBeenLastCalledWith(expect.objectContaining({ home_contact_enabled: true, contact_methods: [updated] }));
+    expect(fetchPublicSettings).toHaveBeenCalledWith(true);
+
+    editor.vm.$emit("update:modelValue", []);
+    await wrapper.find("form").trigger("submit.prevent");
+    await flushPromises();
+    expect(updateSettings).toHaveBeenLastCalledWith(expect.objectContaining({ contact_methods: [] }));
+    wrapper.unmount();
+  });
+
+  it("keeps contact drafts when saving fails and does not publish an invalid draft", async () => {
+    const wrapper = mountView();
+    await flushPromises();
+    const editor = wrapper.getComponent(ContactMethodsEditor);
+    const draft = { id: "support", label: "客服", text: "draft-contact", image_data_url: "", enabled: true };
+    editor.vm.$emit("update:modelValue", [draft]);
+    updateSettings.mockRejectedValueOnce(new Error("save failed"));
+    await wrapper.find("form").trigger("submit.prevent");
+    await flushPromises();
+    expect(editor.props("modelValue")).toEqual([draft]);
+    expect(fetchPublicSettings).not.toHaveBeenCalled();
+
+    updateSettings.mockClear();
+    editor.vm.$emit("update:modelValue", [{ ...draft, text: "" }]);
+    await wrapper.find("form").trigger("submit.prevent");
+    await flushPromises();
+    expect(updateSettings).not.toHaveBeenCalled();
+    expect(showError).toHaveBeenCalled();
+    wrapper.unmount();
+  });
+
+  it("waits for contact image processing before allowing the settings to be saved", async () => {
+    const wrapper = mountView();
+    await flushPromises();
+    const editor = wrapper.getComponent(ContactMethodsEditor);
+    editor.vm.$emit("busy-change", true);
+    await wrapper.find("form").trigger("submit.prevent");
+    await flushPromises();
+    expect(updateSettings).not.toHaveBeenCalled();
+    editor.vm.$emit("busy-change", false);
+    await wrapper.find("form").trigger("submit.prevent");
+    await flushPromises();
+    expect(updateSettings).toHaveBeenCalledOnce();
+    wrapper.unmount();
   });
 
   it("renders panel rate limit card and saves settings", async () => {

@@ -4,10 +4,13 @@ package admin
 
 import (
 	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/Wei-Shaw/sub2api/internal/service"
 
+	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
 
@@ -202,4 +205,48 @@ func TestUpdateSettingsSubscriptionEnabledIsWritableAndKeptWhenOmitted(t *testin
 	require.Equal(t, http.StatusOK, rec.Code)
 	require.Equal(t, "false", repo.values[service.SettingKeySubscriptionEnabled],
 		"a payload without subscription_enabled must not flip the stored value back to true")
+}
+
+func TestUpdateSettingsContactMethodsOmittedPreservesAndEmptyClears(t *testing.T) {
+	stored := `[{"id":"one","label":"Support","text":"hello","image_data_url":"","enabled":true}]`
+	h, repo := newStepUpSwitchTestHandler(t, map[string]string{
+		service.SettingKeyHomeContactEnabled: "true",
+		service.SettingKeyContactMethods:     stored,
+	})
+
+	rec := doUpdateSettings(t, h, map[string]any{"risk_control_enabled": true}, nil)
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.JSONEq(t, stored, repo.values[service.SettingKeyContactMethods])
+	require.Equal(t, "true", repo.values[service.SettingKeyHomeContactEnabled])
+
+	rec = doUpdateSettings(t, h, map[string]any{"contact_methods": []any{}}, nil)
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.JSONEq(t, "[]", repo.values[service.SettingKeyContactMethods])
+}
+
+func TestUpdateSettingsContactMethodsRejectsNullMalformedAndIncompleteWithoutWrites(t *testing.T) {
+	for _, body := range []string{
+		`{"contact_methods":null}`,
+		`{"home_contact_enabled":null}`,
+		`{"contact_methods":[{"id":"one","label":"Support","text":"x","image_data_url":""}]}`,
+		`{"contact_methods":[{"id":"one","label":"Support","text":"x","image_data_url":"","enabled":null}]}`,
+	} {
+		t.Run(body, func(t *testing.T) {
+			h, repo := newStepUpSwitchTestHandler(t, map[string]string{service.SettingKeySiteName: "Original"})
+			rec := doUpdateSettingsRaw(t, h, body)
+			require.Equal(t, http.StatusBadRequest, rec.Code)
+			require.Empty(t, repo.lastUpdates)
+			require.Equal(t, "Original", repo.values[service.SettingKeySiteName])
+		})
+	}
+}
+
+func doUpdateSettingsRaw(t *testing.T, h *SettingHandler, body string) *httptest.ResponseRecorder {
+	t.Helper()
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPut, "/api/v1/admin/settings", strings.NewReader(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+	h.UpdateSettings(c)
+	return rec
 }

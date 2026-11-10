@@ -7,6 +7,7 @@ import { apiClient } from "../client";
 import { listPlatformIds } from "@/constants/platformCatalog";
 import type {
   AccountPlatform,
+  ContactMethod,
   CustomEndpoint,
   CustomMenuItem,
   LoginAgreementDocument,
@@ -486,6 +487,8 @@ export interface SystemSettings {
   site_subtitle: string;
   api_base_url: string;
   contact_info: string;
+  home_contact_enabled: boolean;
+  contact_methods: ContactMethod[];
   doc_url: string;
   home_content: string;
   compact_home_enabled: boolean;
@@ -838,6 +841,8 @@ export interface UpdateSettingsRequest {
   site_subtitle?: string;
   api_base_url?: string;
   contact_info?: string;
+  home_contact_enabled?: boolean;
+  contact_methods?: ContactMethod[];
   doc_url?: string;
   home_content?: string;
   compact_home_enabled?: boolean;

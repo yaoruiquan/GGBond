@@ -99,6 +99,12 @@ func (s *SettingService) refreshCachedSettingsAfterWrite(ctx context.Context, se
 }
 
 func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, settings *SystemSettings) (map[string]string, error) {
+	if err := ValidateContactMethods(settings.ContactMethods); err != nil {
+		return nil, infraerrors.BadRequest("INVALID_CONTACT_METHODS", err.Error())
+	}
+	if settings.ContactMethods == nil {
+		settings.ContactMethods = []ContactMethod{}
+	}
 	if err := s.validateDefaultSubscriptionGroups(ctx, settings.DefaultSubscriptions); err != nil {
 		return nil, err
 	}
@@ -341,6 +347,12 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 	updates[SettingKeySiteSubtitle] = settings.SiteSubtitle
 	updates[SettingKeyAPIBaseURL] = settings.APIBaseURL
 	updates[SettingKeyContactInfo] = settings.ContactInfo
+	updates[SettingKeyHomeContactEnabled] = strconv.FormatBool(settings.HomeContactEnabled)
+	contactMethodsJSON, err := json.Marshal(settings.ContactMethods)
+	if err != nil {
+		return nil, fmt.Errorf("marshal contact methods: %w", err)
+	}
+	updates[SettingKeyContactMethods] = string(contactMethodsJSON)
 	updates[SettingKeyDocURL] = settings.DocURL
 	updates[SettingKeyHomeContent] = settings.HomeContent
 	updates[SettingKeyCompactHomeEnabled] = strconv.FormatBool(settings.CompactHomeEnabled)

@@ -47,6 +47,7 @@
             type="file"
             :accept="acceptTypes"
             class="hidden"
+            :disabled="disabled"
             @change="handleUpload"
           />
           <Icon name="upload" size="sm" class="mr-1.5" :stroke-width="2" />
@@ -55,6 +56,7 @@
         <button
           v-if="modelValue"
           type="button"
+          :disabled="disabled"
           class="btn btn-secondary btn-sm text-red-600 hover:text-red-700 dark:text-red-400"
           @click="removeImage"
         >
@@ -84,6 +86,9 @@ const props = withDefaults(defineProps<{
   removeLabel?: string
   hint?: string
   maxSize?: number // bytes
+  allowedTypes?: string[]
+  disabled?: boolean
+  deferUpdate?: boolean
 }>(), {
   mode: 'image',
   size: 'md',
@@ -91,26 +96,42 @@ const props = withDefaults(defineProps<{
   removeLabel: '',
   hint: '',
   maxSize: 300 * 1024,
+  allowedTypes: () => [],
+  disabled: false,
+  deferUpdate: false,
 })
 
 const emit = defineEmits<{
   'update:modelValue': [value: string]
+  'busy-change': [busy: boolean]
+  'image-read': [value: string]
 }>()
 
 const error = ref('')
 let reader: FileReader | null = null
+let readGeneration = 0
 
-onBeforeUnmount(() => reader?.abort())
+onBeforeUnmount(() => {
+  readGeneration += 1
+  reader?.abort()
+  reader = null
+  emit('busy-change', false)
+})
 
 function removeImage() {
+  readGeneration += 1
   reader?.abort()
+  reader = null
+  emit('busy-change', false)
   emit('update:modelValue', '')
 }
 
 const resolvedUploadLabel = computed(() => props.uploadLabel || t('common.upload'))
 const resolvedRemoveLabel = computed(() => props.removeLabel || t('common.remove'))
 
-const acceptTypes = computed(() => props.mode === 'svg' ? '.svg' : 'image/*')
+const acceptTypes = computed(() => props.allowedTypes.length
+  ? props.allowedTypes.join(',')
+  : props.mode === 'svg' ? '.svg' : 'image/*')
 
 const sanitizedValue = computed(() =>
   props.mode === 'svg' ? sanitizeSvg(props.modelValue ?? '') : ''
@@ -127,37 +148,59 @@ function handleUpload(event: Event) {
 
   if (!file) return
   reader?.abort()
+  const generation = ++readGeneration
 
   if (props.maxSize && file.size > props.maxSize) {
+    readGeneration += 1
+    reader?.abort()
+    reader = null
     error.value = t('common.fileTooLargeKb', {
       size: (file.size / 1024).toFixed(1),
       max: (props.maxSize / 1024).toFixed(0)
     })
     input.value = ''
+    emit('busy-change', false)
+    return
+  }
+
+  if (props.mode !== 'svg' && (!file.type.startsWith('image/') || (props.allowedTypes.length && !props.allowedTypes.includes(file.type)))) {
+    readGeneration += 1
+    reader?.abort()
+    reader = null
+    error.value = t('common.selectImageFile')
+    input.value = ''
+    emit('busy-change', false)
     return
   }
 
   reader = new FileReader()
+  emit('busy-change', true)
   if (props.mode === 'svg') {
     reader.onload = (e) => {
+      if (generation !== readGeneration) return
       const text = e.target?.result as string
-      if (text) emit('update:modelValue', text.trim())
+      if (text) {
+        if (props.deferUpdate) emit('image-read', text.trim())
+        else emit('update:modelValue', text.trim())
+      }
+      emit('busy-change', false)
     }
     reader.readAsText(file)
   } else {
-    if (!file.type.startsWith('image/')) {
-      error.value = t('common.selectImageFile')
-      input.value = ''
-      return
-    }
     reader.onload = (e) => {
-      emit('update:modelValue', e.target?.result as string)
+      if (generation !== readGeneration) return
+      if (props.deferUpdate) emit('image-read', e.target?.result as string)
+      else emit('update:modelValue', e.target?.result as string)
+      emit('busy-change', false)
     }
     reader.readAsDataURL(file)
   }
 
   reader.onerror = () => {
+    if (generation !== readGeneration) return
     error.value = t('common.fileReadFailed')
+    reader = null
+    emit('busy-change', false)
   }
   input.value = ''
 }

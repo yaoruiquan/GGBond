@@ -6626,6 +6626,26 @@
                 </p>
               </div>
 
+              <section data-testid="home-contact-settings" class="space-y-4 border-t border-gray-100 pt-4 dark:border-dark-700">
+                <div class="flex items-center justify-between gap-4">
+                  <div>
+                    <h3 class="font-medium text-gray-900 dark:text-white">{{ t("contactMethods.settingsTitle") }}</h3>
+                    <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ t("contactMethods.publishHint") }}</p>
+                  </div>
+                  <Toggle
+                    v-model="form.home_contact_enabled"
+                    data-testid="home-contact-toggle"
+                    :aria-label="t('contactMethods.showOnHome')"
+                  />
+                </div>
+                <fieldset :disabled="saving" class="min-w-0">
+                  <ContactMethodsEditor
+                    v-model="form.contact_methods"
+                    @busy-change="contactImagesBusy = $event"
+                  />
+                </fieldset>
+              </section>
+
               <!-- Doc URL -->
               <div>
                 <label
@@ -8865,7 +8885,7 @@
         <div v-show="activeTab !== 'backup'" class="flex justify-end">
           <button
             type="submit"
-            :disabled="saving || loadFailed"
+            :disabled="saving || loadFailed || contactImagesBusy"
             class="btn btn-primary"
           >
             <svg
@@ -8968,6 +8988,7 @@ import type {
 } from "@/api/admin/settings";
 import type {
   AdminGroup,
+  ContactMethod,
   LoginAgreementDocument,
   NotifyEmailEntry,
   Proxy,
@@ -8991,6 +9012,8 @@ import GroupOptionItem from "@/components/common/GroupOptionItem.vue";
 import Toggle from "@/components/common/Toggle.vue";
 import ProxySelector from "@/components/common/ProxySelector.vue";
 import ImageUpload from "@/components/common/ImageUpload.vue";
+import ContactMethodsEditor from "@/components/admin/ContactMethodsEditor.vue";
+import { validateContactMethods } from "@/utils/contactMethods";
 import BackupSettings from "@/views/admin/BackupView.vue";
 import EmailTemplateEditor from "@/views/admin/settings/EmailTemplateEditor.vue";
 import RechargeBonusTierEditor from "@/components/admin/settings/RechargeBonusTierEditor.vue";
@@ -9130,6 +9153,7 @@ const { copyToClipboard } = useClipboard();
 const loading = ref(true);
 const loadFailed = ref(false);
 const saving = ref(false);
+const contactImagesBusy = ref(false);
 const testingSmtp = ref(false);
 const sendingTestEmail = ref(false);
 const smtpPasswordManuallyEdited = ref(false);
@@ -9773,6 +9797,8 @@ const form = reactive<SettingsForm>({
   site_subtitle: "Subscription to API Conversion Platform",
   api_base_url: "",
   contact_info: "",
+  home_contact_enabled: false,
+  contact_methods: [] as ContactMethod[],
   doc_url: "",
   home_content: "",
   compact_home_enabled: false,
@@ -11279,8 +11305,14 @@ const siteBillingModeHint = computed(() =>
 );
 
 async function saveSettings() {
+  if (saving.value || loadFailed.value || contactImagesBusy.value) return;
   saving.value = true;
   try {
+    const contactError = await validateContactMethods(form.contact_methods);
+    if (contactError) {
+      appStore.showError(t(contactError));
+      return;
+    }
     const normalizedTableDefaultPageSize = Math.floor(
       Number(form.table_default_page_size),
     );
@@ -11480,6 +11512,8 @@ async function saveSettings() {
       site_subtitle: form.site_subtitle,
       api_base_url: form.api_base_url,
       contact_info: form.contact_info,
+      home_contact_enabled: form.home_contact_enabled,
+      contact_methods: form.contact_methods.map((method) => ({ ...method })),
       doc_url: form.doc_url,
       home_content: form.home_content,
       compact_home_enabled: form.compact_home_enabled,

@@ -1,159 +1,164 @@
 <template>
-  <div v-if="homeContent" class="min-h-screen">
-    <iframe
-      v-if="isHomeContentUrl"
-      :src="homeContent.trim()"
-      class="h-screen w-full border-0"
-      allowfullscreen
-    ></iframe>
-    <div v-else v-html="homeContent"></div>
-  </div>
-
   <div
-    v-else
-    class="relative flex min-h-screen flex-col overflow-hidden bg-gradient-to-b from-ggbond-skin-100 via-white to-ggbond-red-50/60 text-gray-950 dark:from-dark-950 dark:via-dark-950 dark:to-dark-900 dark:text-white"
+    class="relative flex min-h-screen flex-col"
+    :class="!homeContent ? 'bg-gradient-to-b from-ggbond-skin-100 via-white to-ggbond-red-50/60 text-gray-950 dark:from-dark-950 dark:via-dark-950 dark:to-dark-900 dark:text-white' : 'bg-white text-gray-950 dark:bg-dark-950 dark:text-white'"
   >
-    <!-- 背景：红黄光晕 + 闪烁光点 -->
-    <div class="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
-      <div class="absolute left-1/2 top-[38%] h-[30rem] w-[30rem] -translate-x-1/2 -translate-y-1/2 rounded-full bg-ggbond-yellow-200/50 blur-3xl dark:bg-ggbond-yellow-500/10"></div>
-      <div class="absolute -left-32 top-24 h-80 w-80 rounded-full bg-primary-200/40 blur-3xl dark:bg-primary-900/20"></div>
-      <div class="absolute -right-32 bottom-16 h-80 w-80 rounded-full bg-primary-200/40 blur-3xl dark:bg-primary-900/20"></div>
-      <span
-        v-for="(dot, i) in sparkles"
-        :key="i"
-        class="absolute rounded-full motion-safe:animate-twinkle"
-        :class="dot.yellow ? 'bg-ggbond-yellow-400' : 'bg-primary-400'"
-        :style="{ left: dot.x, top: dot.y, width: dot.size, height: dot.size, animationDelay: dot.delay }"
-      ></span>
+    <div v-if="homeContent" class="min-h-screen">
+      <iframe
+        v-if="isHomeContentUrl"
+        :src="homeContent.trim()"
+        class="h-screen w-full border-0"
+        allowfullscreen
+      ></iframe>
+      <div v-else v-html="homeContent"></div>
     </div>
 
-    <header class="relative z-30">
-      <nav class="mx-auto grid max-w-7xl grid-cols-[minmax(0,1fr)_auto] items-center gap-y-2 px-4 py-4 sm:px-6 lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] lg:px-8">
-        <div class="col-start-1 row-start-1 flex min-w-0 items-center">
-          <router-link to="/" class="inline-flex min-w-0 items-center transition-transform hover:scale-105">
-            <BrandLockup :name="siteName" :logo="siteLogo" compact class="max-w-[10rem] sm:max-w-[16rem]" />
-          </router-link>
-        </div>
+    <template v-else>
+      <!-- 背景：红黄光晕 + 闪烁光点 -->
+      <div class="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
+        <div class="absolute left-1/2 top-[38%] h-[30rem] w-[30rem] -translate-x-1/2 -translate-y-1/2 rounded-full bg-ggbond-yellow-200/50 blur-3xl dark:bg-ggbond-yellow-500/10"></div>
+        <div class="absolute -left-32 top-24 h-80 w-80 rounded-full bg-primary-200/40 blur-3xl dark:bg-primary-900/20"></div>
+        <div class="absolute -right-32 bottom-16 h-80 w-80 rounded-full bg-primary-200/40 blur-3xl dark:bg-primary-900/20"></div>
+        <span
+          v-for="(dot, i) in sparkles"
+          :key="i"
+          class="absolute rounded-full motion-safe:animate-twinkle"
+          :class="dot.yellow ? 'bg-ggbond-yellow-400' : 'bg-primary-400'"
+          :style="{ left: dot.x, top: dot.y, width: dot.size, height: dot.size, animationDelay: dot.delay }"
+        ></span>
+      </div>
 
-        <router-link
-          v-if="showModelPlazaEntry"
-          to="/model-plaza"
-          class="model-plaza-entry col-span-2 col-start-1 row-start-2 inline-flex min-h-11 items-center justify-center gap-2 justify-self-center whitespace-nowrap rounded-lg px-3 py-2 text-base font-semibold text-gray-700 hover:text-primary-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary-500 dark:text-dark-200 dark:hover:text-primary-300 sm:text-lg lg:col-span-1 lg:col-start-2 lg:row-start-1"
-          :title="t('nav.modelMarket')"
-          :aria-label="t('nav.modelMarket')"
-        >
-          <Icon name="grid" size="md" class="model-plaza-icon" />
-          <span>{{ t('nav.modelMarket') }}</span>
-        </router-link>
-
-        <div class="col-start-2 row-start-1 flex items-center justify-self-end gap-1 sm:gap-2 lg:col-start-3">
-          <LocaleSwitcher />
-          <a
-            v-if="docUrl"
-            :href="docUrl"
-            target="_blank"
-            rel="noopener noreferrer"
-            class="nav-icon hidden sm:inline-flex"
-            :title="t('home.viewDocs')"
-          >
-            <Icon name="book" size="md" />
-          </a>
-          <button
-            type="button"
-            class="nav-icon"
-            :title="isDark ? t('home.switchToLight') : t('home.switchToDark')"
-            @click="toggleTheme"
-          >
-            <Icon v-if="isDark" name="sun" size="md" />
-            <Icon v-else name="moon" size="md" />
-          </button>
-          <router-link
-            v-if="!isAuthenticated"
-            to="/login"
-            class="hidden rounded-full px-4 py-2 text-sm font-semibold text-gray-700 transition-colors hover:bg-white hover:text-primary-600 dark:text-dark-200 dark:hover:bg-white/10 dark:hover:text-primary-300 sm:inline-flex"
-          >
-            {{ t('home.login') }}
-          </router-link>
-          <router-link
-            :to="ctaPath"
-            class="inline-flex items-center rounded-full bg-primary-500 px-4 py-2 text-sm font-semibold text-white shadow-glow-red transition hover:bg-primary-600 sm:px-5"
-          >
-            {{ isAuthenticated ? t('home.dashboard') : t('home.register') }}
-          </router-link>
-        </div>
-      </nav>
-    </header>
-
-    <main class="relative z-10 flex flex-1 flex-col">
-      <section class="mx-auto grid w-full max-w-7xl flex-1 items-center px-4 sm:px-6 lg:grid-cols-[15rem_minmax(0,1fr)_15rem] lg:gap-6 lg:px-8">
-        <!-- 左侧精选卡（桌面端） -->
-        <div class="hidden justify-start lg:flex" @pointerenter="cardsHovered = true" @pointerleave="cardsHovered = false">
-          <Transition name="featured" mode="out-in">
-            <FeaturedModelCard
-              :key="leftCard.id"
-              :model="leftCard.model"
-              :name="leftCard.name"
-              :category="leftCard.category"
-              :description="leftCard.description"
-              align="left"
-            />
-          </Transition>
-        </div>
-
-        <!-- 中间：猪猪侠 + 模型轨道 -->
-        <div class="flex flex-col items-center">
-          <div class="h-[min(56vh,34rem)] min-h-[20rem] w-full max-w-3xl">
-            <ModelOrbit :providers="showcaseProviders" :highlighted="highlightedIds" :mascot-label="siteName" />
+      <header class="relative z-30">
+        <nav class="mx-auto grid max-w-7xl grid-cols-[minmax(0,1fr)_auto] items-center gap-y-2 px-4 py-4 sm:px-6 lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] lg:px-8">
+          <div class="col-start-1 row-start-1 flex min-w-0 items-center">
+            <router-link to="/" class="inline-flex min-w-0 items-center transition-transform hover:scale-105">
+              <BrandLockup :name="siteName" :logo="siteLogo" compact class="max-w-[10rem] sm:max-w-[16rem]" />
+            </router-link>
           </div>
 
-          <div class="-mt-2 text-center">
-            <h1 class="text-3xl font-black tracking-tight sm:text-5xl">
-              <span class="hero-lead block sm:inline">{{ t('home.heroTitleLead') }}</span><span class="hero-tail block sm:inline">{{ t('home.heroTitleTail') }}</span>
-            </h1>
-            <p class="mx-auto mt-3 max-w-xl text-sm leading-6 text-gray-600 dark:text-dark-300 sm:text-base">
-              {{ siteSubtitle }}
-            </p>
-            <div class="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
-              <router-link :to="ctaPath" class="btn btn-primary btn-lg min-w-[10rem] shadow-glow-red">
-                {{ isAuthenticated ? t('home.goToDashboard') : t('home.primaryCta') }}
-                <Icon name="chevronRight" size="sm" :stroke-width="2" />
-              </router-link>
-              <a v-if="docUrl" :href="docUrl" target="_blank" rel="noopener noreferrer" class="btn btn-secondary btn-lg">
-                {{ t('home.viewDocs') }}
-              </a>
+          <router-link
+            v-if="showModelPlazaEntry"
+            to="/model-plaza"
+            class="model-plaza-entry col-span-2 col-start-1 row-start-2 inline-flex min-h-11 items-center justify-center gap-2 justify-self-center whitespace-nowrap rounded-lg px-3 py-2 text-base font-semibold text-gray-700 hover:text-primary-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary-500 dark:text-dark-200 dark:hover:text-primary-300 sm:text-lg lg:col-span-1 lg:col-start-2 lg:row-start-1"
+            :title="t('nav.modelMarket')"
+            :aria-label="t('nav.modelMarket')"
+          >
+            <Icon name="grid" size="md" class="model-plaza-icon" />
+            <span>{{ t('nav.modelMarket') }}</span>
+          </router-link>
+
+          <div class="col-start-2 row-start-1 flex items-center justify-self-end gap-1 sm:gap-2 lg:col-start-3">
+            <LocaleSwitcher />
+            <a
+              v-if="docUrl"
+              :href="docUrl"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="nav-icon hidden sm:inline-flex"
+              :title="t('home.viewDocs')"
+            >
+              <Icon name="book" size="md" />
+            </a>
+            <button
+              type="button"
+              class="nav-icon"
+              :title="isDark ? t('home.switchToLight') : t('home.switchToDark')"
+              @click="toggleTheme"
+            >
+              <Icon v-if="isDark" name="sun" size="md" />
+              <Icon v-else name="moon" size="md" />
+            </button>
+            <router-link
+              v-if="!isAuthenticated"
+              to="/login"
+              class="hidden rounded-full px-4 py-2 text-sm font-semibold text-gray-700 transition-colors hover:bg-white hover:text-primary-600 dark:text-dark-200 dark:hover:bg-white/10 dark:hover:text-primary-300 sm:inline-flex"
+            >
+              {{ t('home.login') }}
+            </router-link>
+            <router-link
+              :to="ctaPath"
+              class="inline-flex items-center rounded-full bg-primary-500 px-4 py-2 text-sm font-semibold text-white shadow-glow-red transition hover:bg-primary-600 sm:px-5"
+            >
+              {{ isAuthenticated ? t('home.dashboard') : t('home.register') }}
+            </router-link>
+          </div>
+        </nav>
+      </header>
+
+      <main class="relative z-10 flex flex-1 flex-col">
+        <section class="mx-auto grid w-full max-w-7xl flex-1 items-center px-4 sm:px-6 lg:grid-cols-[15rem_minmax(0,1fr)_15rem] lg:gap-6 lg:px-8">
+          <!-- 左侧精选卡（桌面端） -->
+          <div class="hidden justify-start lg:flex" @pointerenter="cardsHovered = true" @pointerleave="cardsHovered = false">
+            <Transition name="featured" mode="out-in">
+              <FeaturedModelCard
+                :key="leftCard.id"
+                :model="leftCard.model"
+                :name="leftCard.name"
+                :category="leftCard.category"
+                :description="leftCard.description"
+                align="left"
+              />
+            </Transition>
+          </div>
+
+          <!-- 中间：猪猪侠 + 模型轨道 -->
+          <div class="flex flex-col items-center">
+            <div class="h-[min(56vh,34rem)] min-h-[20rem] w-full max-w-3xl">
+              <ModelOrbit :providers="showcaseProviders" :highlighted="highlightedIds" :mascot-label="siteName" />
+            </div>
+
+            <div class="-mt-2 text-center">
+              <h1 class="text-3xl font-black tracking-tight sm:text-5xl">
+                <span class="hero-lead block sm:inline">{{ t('home.heroTitleLead') }}</span><span class="hero-tail block sm:inline">{{ t('home.heroTitleTail') }}</span>
+              </h1>
+              <p class="mx-auto mt-3 max-w-xl text-sm leading-6 text-gray-600 dark:text-dark-300 sm:text-base">
+                {{ siteSubtitle }}
+              </p>
+              <div class="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
+                <router-link :to="ctaPath" class="btn btn-primary btn-lg min-w-[10rem] shadow-glow-red">
+                  {{ isAuthenticated ? t('home.goToDashboard') : t('home.primaryCta') }}
+                  <Icon name="chevronRight" size="sm" :stroke-width="2" />
+                </router-link>
+                <a v-if="docUrl" :href="docUrl" target="_blank" rel="noopener noreferrer" class="btn btn-secondary btn-lg">
+                  {{ t('home.viewDocs') }}
+                </a>
+              </div>
             </div>
           </div>
-        </div>
 
-        <!-- 右侧精选卡（桌面端） -->
-        <div class="hidden justify-end lg:flex" @pointerenter="cardsHovered = true" @pointerleave="cardsHovered = false">
-          <Transition name="featured" mode="out-in">
-            <FeaturedModelCard
-              :key="rightCard.id"
-              :model="rightCard.model"
-              :name="rightCard.name"
-              :category="rightCard.category"
-              :description="rightCard.description"
-              align="right"
-            />
-          </Transition>
-        </div>
-      </section>
+          <!-- 右侧精选卡（桌面端） -->
+          <div class="hidden justify-end lg:flex" @pointerenter="cardsHovered = true" @pointerleave="cardsHovered = false">
+            <Transition name="featured" mode="out-in">
+              <FeaturedModelCard
+                :key="rightCard.id"
+                :model="rightCard.model"
+                :name="rightCard.name"
+                :category="rightCard.category"
+                :description="rightCard.description"
+                align="right"
+              />
+            </Transition>
+          </div>
+        </section>
 
-      <!-- 平板和手机：精选卡放到下方，三张都显示 -->
-      <section class="mx-auto mt-10 grid w-full max-w-3xl justify-items-center gap-8 px-4 pb-6 sm:grid-cols-3 lg:hidden">
-        <FeaturedModelCard
-          v-for="card in allCards"
-          :key="card.id"
-          :model="card.model"
-          :name="card.name"
-          :category="card.category"
-          :description="card.description"
-        />
-      </section>
-    </main>
+        <!-- 平板和手机：精选卡放到下方，三张都显示 -->
+        <section class="mx-auto mt-10 grid w-full max-w-3xl justify-items-center gap-8 px-4 pb-6 sm:grid-cols-3 lg:hidden">
+          <FeaturedModelCard
+            v-for="card in allCards"
+            :key="card.id"
+            :model="card.model"
+            :name="card.name"
+            :category="card.category"
+            :description="card.description"
+          />
+        </section>
+      </main>
 
-    <footer class="relative z-10 py-6 text-center text-xs text-gray-500 dark:text-dark-400">
+    </template>
+
+    <HomeContactSection v-if="contactMethods.length" :methods="contactMethods" />
+
+    <footer v-if="!homeContent" class="relative z-10 py-6 text-center text-xs text-gray-500 dark:text-dark-400">
       &copy; {{ currentYear }} {{ siteName }}. {{ t('home.footer.allRightsReserved') }}
     </footer>
   </div>
@@ -167,6 +172,7 @@ import { useAuthStore, useAppStore } from '@/stores'
 import LocaleSwitcher from '@/components/common/LocaleSwitcher.vue'
 import Icon from '@/components/icons/Icon.vue'
 import BrandLockup from '@/components/brand/BrandLockup.vue'
+import HomeContactSection from '@/components/home/HomeContactSection.vue'
 import { FeatureFlags, isFeatureFlagEnabled } from '@/utils/featureFlags'
 import { sanitizeUrl } from '@/utils/url'
 import ModelOrbit from './home/ModelOrbit.vue'
@@ -187,6 +193,12 @@ const siteSubtitle = computed(
 )
 const docUrl = computed(() => sanitizeUrl(appStore.cachedPublicSettings?.doc_url || appStore.docUrl || ''))
 const homeContent = computed(() => appStore.cachedPublicSettings?.home_content || '')
+const contactMethods = computed(() => {
+  const settings = appStore.cachedPublicSettings
+  return settings?.home_contact_enabled === true && Array.isArray(settings.contact_methods)
+    ? settings.contact_methods.filter((method) => method.enabled)
+    : []
+})
 const isHomeContentUrl = computed(() => {
   const content = homeContent.value.trim()
   return content.startsWith('http://') || content.startsWith('https://')

@@ -208,6 +208,14 @@ export interface LoginAgreementDocument {
   content_md: string
 }
 
+export interface ContactMethod {
+  id: string
+  label: string
+  text: string
+  image_data_url: string
+  enabled: boolean
+}
+
 export interface PublicSettings {
   registration_enabled: boolean
   email_verify_enabled: boolean
@@ -237,6 +245,8 @@ export interface PublicSettings {
   site_subtitle: string
   api_base_url: string
   contact_info: string
+  home_contact_enabled: boolean
+  contact_methods: ContactMethod[]
   doc_url: string
   home_content: string
   compact_home_enabled: boolean

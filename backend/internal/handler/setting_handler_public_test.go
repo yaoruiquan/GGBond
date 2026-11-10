@@ -155,3 +155,30 @@ func TestSettingHandler_GetPublicSettings_ExposesWeChatOAuthModeCapabilities(t *
 	require.True(t, resp.Data.WeChatOAuthOpenEnabled)
 	require.True(t, resp.Data.WeChatOAuthMPEnabled)
 }
+
+func TestSettingHandler_GetPublicSettingsFiltersContactMethods(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	methods := `[{"id":"shown","label":"Support","text":"help","image_data_url":"","enabled":true},{"id":"hidden","label":"Internal","text":"do-not-publish","image_data_url":"","enabled":false}]`
+	repo := &settingHandlerPublicRepoStub{values: map[string]string{
+		service.SettingKeyHomeContactEnabled: "true",
+		service.SettingKeyContactMethods:     methods,
+	}}
+	h := NewSettingHandler(service.NewSettingService(repo, &config.Config{}), "test-version")
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/settings/public", nil)
+	h.GetPublicSettings(c)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	var response struct {
+		Data struct {
+			HomeContactEnabled bool                    `json:"home_contact_enabled"`
+			ContactMethods     []service.ContactMethod `json:"contact_methods"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &response))
+	require.True(t, response.Data.HomeContactEnabled)
+	require.Len(t, response.Data.ContactMethods, 1)
+	require.Equal(t, "shown", response.Data.ContactMethods[0].ID)
+	require.NotContains(t, recorder.Body.String(), "do-not-publish")
+}

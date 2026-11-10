@@ -50,7 +50,7 @@ function injectBranding(html: string, config: { site_name?: string; site_logo?: 
  * Vite 插件：开发模式下注入公开配置到 index.html
  * 与生产模式的后端注入行为保持一致，消除闪烁
  */
-function injectPublicSettings(backendUrl: string): Plugin {
+export function injectPublicSettings(backendUrl: string): Plugin {
   return {
     name: 'inject-public-settings',
     apply: 'serve',
@@ -64,7 +64,9 @@ function injectPublicSettings(backendUrl: string): Plugin {
           if (response.ok) {
             const data = await response.json()
             if (data.code === 0 && data.data) {
-              const script = `<script>window.__APP_CONFIG__=${JSON.stringify(data.data)};</script>`
+              // Match production JSON injection: plain settings text must not close the script.
+              const serialized = JSON.stringify(data.data).replace(/</g, '\\u003c')
+              const script = `<script>window.__APP_CONFIG__=${serialized};</script>`
               return injectBranding(html, data.data).replace('</head>', `${script}\n</head>`)
             }
           }

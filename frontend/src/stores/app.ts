@@ -291,6 +291,14 @@ export const useAppStore = defineStore('app', () => {
    * Apply settings to store state (internal helper to avoid code duplication)
    */
   function applySettings(config: PublicSettings): void {
+    // Older injected settings may not contain the Home contact fields.
+    config = {
+      ...config,
+      home_contact_enabled: config.home_contact_enabled === true,
+      contact_methods: config.home_contact_enabled === true && Array.isArray(config.contact_methods)
+        ? config.contact_methods.filter((method) => method.enabled)
+        : [],
+    }
     if (typeof window !== 'undefined') {
       window.__APP_CONFIG__ = { ...config }
     }
@@ -345,6 +353,8 @@ export const useAppStore = defineStore('app', () => {
         site_subtitle: '',
         api_base_url: apiBaseUrl.value,
         contact_info: contactInfo.value,
+        home_contact_enabled: false,
+        contact_methods: [],
         doc_url: docUrl.value,
         home_content: '',
         compact_home_enabled: false,

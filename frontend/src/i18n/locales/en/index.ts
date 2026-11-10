@@ -9,8 +9,10 @@ import admin from './admin'
 import misc from './misc'
 import ggbond from './ggbond'
 import homeGgbond from './home-ggbond'
+import contactMethods from './contact-methods'
 
 export default {
+  contactMethods,
   adminAccessKeys,
   mcp,
   ...landing,

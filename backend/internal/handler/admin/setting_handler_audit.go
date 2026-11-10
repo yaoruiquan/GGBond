@@ -332,6 +332,12 @@ func diffSettings(before *service.SystemSettings, after *service.SystemSettings,
 	if before.ContactInfo != after.ContactInfo {
 		changed = append(changed, "contact_info")
 	}
+	if before.HomeContactEnabled != after.HomeContactEnabled {
+		changed = append(changed, "home_contact_enabled")
+	}
+	if !equalContactMethods(before.ContactMethods, after.ContactMethods) {
+		changed = append(changed, "contact_methods")
+	}
 	if before.DocURL != after.DocURL {
 		changed = append(changed, "doc_url")
 	}
@@ -621,6 +627,18 @@ func diffSettings(before *service.SystemSettings, after *service.SystemSettings,
 	}
 	changed = appendAuthSourceDefaultChanges(changed, beforeAuthSourceDefaults, afterAuthSourceDefaults)
 	return changed
+}
+
+func equalContactMethods(before, after []service.ContactMethod) bool {
+	if len(before) != len(after) {
+		return false
+	}
+	for i := range before {
+		if before[i] != after[i] {
+			return false
+		}
+	}
+	return true
 }
 
 func appendAuthSourceDefaultChanges(changed []string, before *service.AuthSourceDefaultSettings, after *service.AuthSourceDefaultSettings) []string {

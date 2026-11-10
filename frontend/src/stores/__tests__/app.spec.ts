@@ -31,6 +31,8 @@ function createPublicSettings(overrides: Partial<PublicSettings> = {}): PublicSe
     site_subtitle: '',
     api_base_url: '',
     contact_info: '',
+    home_contact_enabled: false,
+    contact_methods: [],
     doc_url: '',
     home_content: '',
     compact_home_enabled: false,

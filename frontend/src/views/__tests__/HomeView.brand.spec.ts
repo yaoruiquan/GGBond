@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { mount, RouterLinkStub } from '@vue/test-utils'
 import HomeView from '../HomeView.vue'
+import HomeContactSection from '@/components/home/HomeContactSection.vue'
 
 const { appStore, authStore } = vi.hoisted(() => ({
   appStore: {
@@ -24,7 +25,7 @@ function mountHome(settings: Record<string, unknown> = {}) {
     global: {
       stubs: {
         RouterLink: RouterLinkStub, LocaleSwitcher: true, Icon: true,
-        ModelOrbit: true, FeaturedModelCard: true,
+        ModelOrbit: true, FeaturedModelCard: true, HomeContactSection: true,
       },
     },
   })
@@ -96,5 +97,29 @@ describe('HomeView brand landing', () => {
   it('renders a trimmed administrator URL in an iframe', () => {
     const wrapper = mountHome({ home_content: ' https://example.com/home ' })
     expect(wrapper.get('iframe').attributes('src')).toBe('https://example.com/home')
+  })
+
+  it.each(['', '<section id="custom-home">Tenant home</section>', 'https://example.com/home'])(
+    'shows published contacts outside the main content in Home mode %s', (homeContent) => {
+      const visible = { id: 'support', label: '客服微信', text: 'support-id', image_data_url: '', enabled: true }
+      const hidden = { ...visible, id: 'draft', text: 'hidden-contact', enabled: false }
+      const wrapper = mountHome({ home_content: homeContent, home_contact_enabled: true, contact_methods: [hidden, visible] })
+      const sections = wrapper.findAllComponents(HomeContactSection)
+      expect(sections).toHaveLength(1)
+      expect(sections[0].props('methods')).toEqual([visible])
+      expect(sections[0].element.parentElement).toBe(wrapper.element)
+      if (!homeContent) {
+        expect(sections[0].element.nextElementSibling?.tagName).toBe('FOOTER')
+      }
+    },
+  )
+
+  it.each([
+    { home_contact_enabled: false, contact_methods: [{ enabled: true }] },
+    { home_contact_enabled: true, contact_methods: [] },
+    { home_contact_enabled: true, contact_methods: [{ enabled: false }] },
+    { contact_info: 'Legacy support' },
+  ])('does not reserve a contact section for unpublished or legacy-only settings', (settings) => {
+    expect(mountHome(settings).findComponent(HomeContactSection).exists()).toBe(false)
   })
 })

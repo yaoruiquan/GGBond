@@ -153,21 +153,23 @@ type UpdateSettingsRequest struct {
 	GoogleOAuthFrontendRedirectURL string `json:"google_oauth_frontend_redirect_url"`
 
 	// OEM设置
-	SiteName                    string                `json:"site_name"`
-	SiteLogo                    string                `json:"site_logo"`
-	SiteSubtitle                string                `json:"site_subtitle"`
-	APIBaseURL                  string                `json:"api_base_url"`
-	ContactInfo                 string                `json:"contact_info"`
-	DocURL                      string                `json:"doc_url"`
-	HomeContent                 string                `json:"home_content"`
-	CompactHomeEnabled          bool                  `json:"compact_home_enabled"`
-	HideCcsImportButton         bool                  `json:"hide_ccs_import_button"`
-	PurchaseSubscriptionEnabled *bool                 `json:"purchase_subscription_enabled"`
-	PurchaseSubscriptionURL     *string               `json:"purchase_subscription_url"`
-	TableDefaultPageSize        int                   `json:"table_default_page_size"`
-	TablePageSizeOptions        []int                 `json:"table_page_size_options"`
-	CustomMenuItems             *[]dto.CustomMenuItem `json:"custom_menu_items"`
-	CustomEndpoints             *[]dto.CustomEndpoint `json:"custom_endpoints"`
+	SiteName                    string                  `json:"site_name"`
+	SiteLogo                    string                  `json:"site_logo"`
+	SiteSubtitle                string                  `json:"site_subtitle"`
+	APIBaseURL                  string                  `json:"api_base_url"`
+	ContactInfo                 string                  `json:"contact_info"`
+	HomeContactEnabled          bool                    `json:"home_contact_enabled"`
+	ContactMethods              []service.ContactMethod `json:"contact_methods"`
+	DocURL                      string                  `json:"doc_url"`
+	HomeContent                 string                  `json:"home_content"`
+	CompactHomeEnabled          bool                    `json:"compact_home_enabled"`
+	HideCcsImportButton         bool                    `json:"hide_ccs_import_button"`
+	PurchaseSubscriptionEnabled *bool                   `json:"purchase_subscription_enabled"`
+	PurchaseSubscriptionURL     *string                 `json:"purchase_subscription_url"`
+	TableDefaultPageSize        int                     `json:"table_default_page_size"`
+	TablePageSizeOptions        []int                   `json:"table_page_size_options"`
+	CustomMenuItems             *[]dto.CustomMenuItem   `json:"custom_menu_items"`
+	CustomEndpoints             *[]dto.CustomEndpoint   `json:"custom_endpoints"`
 
 	// 默认配置
 	DefaultConcurrency                        int                               `json:"default_concurrency"`
@@ -500,6 +502,20 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 	if err := c.ShouldBindBodyWith(&req, binding.JSON); err != nil {
 		response.BadRequest(c, "Invalid request: "+err.Error())
 		return
+	}
+	for _, field := range []string{"home_contact_enabled", "contact_methods"} {
+		if raw, ok := sentFields[field]; ok && string(raw) == "null" {
+			response.BadRequest(c, field+" cannot be null")
+			return
+		}
+	}
+	if raw, ok := sentFields["contact_methods"]; ok {
+		methods, err := service.ValidateContactMethodsJSON(raw)
+		if err != nil {
+			response.BadRequest(c, err.Error())
+			return
+		}
+		req.ContactMethods = methods
 	}
 	auditReq := settingsAuditRequest(req)
 	omitted := omittedSettingKeys(sentFields)
@@ -1645,6 +1661,8 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		SiteSubtitle:                           req.SiteSubtitle,
 		APIBaseURL:                             req.APIBaseURL,
 		ContactInfo:                            req.ContactInfo,
+		HomeContactEnabled:                     req.HomeContactEnabled,
+		ContactMethods:                         req.ContactMethods,
 		DocURL:                                 req.DocURL,
 		HomeContent:                            req.HomeContent,
 		CompactHomeEnabled:                     req.CompactHomeEnabled,
@@ -2309,6 +2327,8 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		SiteSubtitle:                                           updatedSettings.SiteSubtitle,
 		APIBaseURL:                                             updatedSettings.APIBaseURL,
 		ContactInfo:                                            updatedSettings.ContactInfo,
+		HomeContactEnabled:                                     updatedSettings.HomeContactEnabled,
+		ContactMethods:                                         updatedSettings.ContactMethods,
 		DocURL:                                                 updatedSettings.DocURL,
 		HomeContent:                                            updatedSettings.HomeContent,
 		CompactHomeEnabled:                                     updatedSettings.CompactHomeEnabled,

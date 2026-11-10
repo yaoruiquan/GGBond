@@ -334,3 +334,32 @@ func TestSettingService_GetPublicSettings_MCPEnabledFollowsExplicitPublicURL(t *
 		require.Contains(t, string(encoded), fmt.Sprintf(`"mcp_enabled":%t`, tc.want))
 	}
 }
+
+func TestSettingService_PublicContactMethodsFiltersDisabledForAPIAndInjection(t *testing.T) {
+	methods := []ContactMethod{
+		{ID: "visible", Label: "Visible", Text: "hello", Enabled: true},
+		{ID: "hidden", Label: "Hidden", Text: "secret", Enabled: false},
+	}
+	raw, err := json.Marshal(methods)
+	require.NoError(t, err)
+	repo := &settingPublicRepoStub{values: map[string]string{
+		SettingKeyHomeContactEnabled: "true",
+		SettingKeyContactMethods:     string(raw),
+	}}
+	svc := NewSettingService(repo, &config.Config{})
+	api, err := svc.GetPublicSettings(context.Background())
+	require.NoError(t, err)
+	injected, err := svc.GetPublicSettingsForInjection(context.Background())
+	require.NoError(t, err)
+	payload := injected.(*PublicSettingsInjectionPayload)
+	require.Equal(t, []ContactMethod{methods[0]}, api.ContactMethods)
+	require.Equal(t, api.ContactMethods, payload.ContactMethods)
+	require.NotContains(t, string(mustJSONContact(t, payload)), "secret")
+}
+
+func mustJSONContact(t *testing.T, value any) []byte {
+	t.Helper()
+	data, err := json.Marshal(value)
+	require.NoError(t, err)
+	return data
+}

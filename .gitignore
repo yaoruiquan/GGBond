@@ -153,6 +153,7 @@ docs/guides/*
 !docs/guides/PAYMENT.md
 !docs/guides/PAYMENT_CN.md
 !docs/guides/COMPOSITE_GROUPS.md
+!docs/guides/home-contact-methods.md
 !docs/development/
 docs/development/*
 !docs/development/PLUGIN_DEVELOPMENT.md
@@ -169,6 +170,7 @@ docs/project/*
 docs/plans/*
 !docs/plans/migration-roadmap.md
 !docs/plans/migration-handoff-2026-11-02.md
+!docs/plans/home-contact-methods.md
 !docs/legal/
 !docs/legal/*.md
 !docs/screenshots/
