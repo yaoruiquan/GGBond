@@ -45,6 +45,17 @@ describe('ContactMethodsEditor', () => {
     expect(wrapper.emitted('busy-change')?.at(-1)).toEqual([true])
   })
 
+  it('accepts an image above the previous upload cap and passes a 20 MiB limit to the uploader', async () => {
+    imageValidation.mockResolvedValueOnce(null)
+    const wrapper = mount(ContactMethodsEditor, { props: { modelValue: methods.slice(0, 1) } })
+    const uploader = wrapper.findComponent({ name: 'ImageUpload' })
+    expect(uploader.props('maxSize')).toBe(20 * 1024 * 1024)
+    const candidate = `data:image/png;base64,${btoa('x'.repeat(200 * 1024))}`
+    uploader.vm.$emit('image-read', candidate)
+    await vi.waitFor(() => expect(wrapper.emitted('update:modelValue')).toHaveLength(1))
+    expect((wrapper.emitted('update:modelValue')?.[0][0] as ContactMethod[])[0].image_data_url).toBe(candidate)
+  })
+
   it('allows an unnamed image draft and keeps the prior image when candidate validation fails', async () => {
     imageValidation.mockResolvedValueOnce('contactMethods.errors.invalidImage')
     const existing = [{ ...methods[0], label: '', image_data_url: 'data:image/png;base64,AAAA' }]

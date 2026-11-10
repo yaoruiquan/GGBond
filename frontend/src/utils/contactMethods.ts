@@ -4,14 +4,14 @@ export const CONTACT_METHOD_LIMITS = {
   count: 6,
   labelCodePoints: 40,
   textCodePoints: 500,
-  imageBytes: 100 * 1024,
-  totalImageBytes: 300 * 1024,
-  jsonBytes: 450 * 1024,
-  minDimension: 64,
-  maxDimension: 2048,
-  maxPixels: 4_000_000,
+  imageBytes: 20 * 1024 * 1024,
+  totalImageBytes: 60 * 1024 * 1024,
+  jsonBytes: 85 * 1024 * 1024,
+  minDimension: 1,
+  maxDimension: 32768,
+  maxPixels: 100_000_000,
   imageTypes: ['image/png', 'image/jpeg'] as const,
-  decodeTimeoutMs: 5000,
+  decodeTimeoutMs: 30000,
 } as const
 
 const ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/
@@ -117,20 +117,22 @@ export async function validateContactImage(dataUrl: string): Promise<string | nu
   return null
 }
 
-function dataUrlBytes(dataUrl: string): number[] {
-  const payload = dataUrl.slice(dataUrl.indexOf(',') + 1)
-  const binary = atob(payload)
-  return Array.from(binary, char => char.charCodeAt(0))
-}
-
 function isPngSignature(dataUrl: string): boolean {
-  const bytes = dataUrlBytes(dataUrl)
-  return bytes.slice(0, 8).join(',') === '137,80,78,71,13,10,26,10'
+  const payload = dataUrl.slice(dataUrl.indexOf(',') + 1)
+  try {
+    return atob(payload.slice(0, 12)).startsWith('\x89PNG\r\n\x1a\n')
+  } catch {
+    return false
+  }
 }
 
 function isJpegSignature(dataUrl: string): boolean {
-  const bytes = dataUrlBytes(dataUrl)
-  return bytes[0] === 0xff && bytes[1] === 0xd8 && bytes.at(-2) === 0xff && bytes.at(-1) === 0xd9
+  const payload = dataUrl.slice(dataUrl.indexOf(',') + 1)
+  try {
+    return atob(payload.slice(0, 4)).startsWith('\xff\xd8') && atob(payload.slice(-8)).endsWith('\xff\xd9')
+  } catch {
+    return false
+  }
 }
 
 export function createContactMethod(): ContactMethod {

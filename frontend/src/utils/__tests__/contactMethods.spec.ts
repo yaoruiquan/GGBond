@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from 'vitest'
-import { CONTACT_METHOD_LIMITS, validateContactMethodShape } from '../contactMethods'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { CONTACT_METHOD_LIMITS, validateContactImage, validateContactMethodShape } from '../contactMethods'
 import type { ContactMethod } from '@/types'
 
 const method = (override: Partial<ContactMethod> = {}): ContactMethod => ({ id: 'support', label: 'Support', text: 'hello', image_data_url: '', enabled: true, ...override })
@@ -22,16 +22,45 @@ describe('contact method validation', () => {
 })
 
 describe('async image validation', () => {
-  it('can validate a browser-decoded image when supplied by the host', async () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  function decodedImage(width: number, height: number) {
     vi.stubGlobal('Image', class {
-      naturalWidth = 64
-      naturalHeight = 64
+      naturalWidth = width
+      naturalHeight = height
       onload: (() => void) | null = null
       onerror: (() => void) | null = null
       set src(_value: string) { queueMicrotask(() => this.onload?.()) }
     })
-    const { validateContactMethods } = await import('../contactMethods')
-    await expect(validateContactMethods([method()])).resolves.toBeNull()
-    vi.unstubAllGlobals()
+  }
+
+  const png = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aI1sAAAAASUVORK5CYII='
+
+  it.each([[1, 1], [63, 64], [2049, 64], [4096, 4096], [32768, 64], [10000, 10000]])('accepts browser-decoded images at %i × %i', async (width, height) => {
+    decodedImage(width, height)
+    await expect(validateContactImage(png)).resolves.toBeNull()
+  })
+
+  it.each([[0, 64], [32769, 64], [10001, 10000]])('rejects dimensions outside the expanded bounds at %i × %i', async (width, height) => {
+    decodedImage(width, height)
+    await expect(validateContactImage(png)).resolves.toBe('contactMethods.errors.invalidDimensions')
+  })
+
+  it('accepts a browser-decoded PNG larger than the former 100 KiB limit', async () => {
+    decodedImage(4096, 4096)
+    const dataUrl = `data:image/png;base64,${btoa(atob(png.split(',')[1]) + '\x00'.repeat(200 * 1024))}`
+    expect(validateContactMethodShape([method({ image_data_url: dataUrl })])).toBeNull()
+    await expect(validateContactImage(dataUrl)).resolves.toBeNull()
+  })
+
+  it('checks JPEG markers without decoding the entire image into a byte array', async () => {
+    decodedImage(4096, 4096)
+    await expect(validateContactImage(`data:image/jpeg;base64,${btoa('\xff\xd8' + '\x00'.repeat(200 * 1024) + '\xff\xd9')}`)).resolves.toBeNull()
+    await expect(validateContactImage(`data:image/jpeg;base64,${btoa('\xff\xd8invalid')}`)).resolves.toBe('contactMethods.errors.invalidImage')
+  })
+
+  it('rejects an image larger than 20 MiB before browser decoding', async () => {
+    const dataUrl = `data:image/png;base64,${'A'.repeat(Math.ceil((CONTACT_METHOD_LIMITS.imageBytes + 1) / 3) * 4)}`
+    await expect(validateContactImage(dataUrl)).resolves.toBe('contactMethods.errors.imageTooLarge')
   })
 })

@@ -17,9 +17,12 @@ const (
 	MaxContactMethods          = 6
 	MaxContactLabelRunes       = 40
 	MaxContactTextRunes        = 500
-	MaxContactImageBytes       = 100 * 1024
-	MaxContactImagesBytes      = 300 * 1024
-	MaxContactMethodsJSONBytes = 450 * 1024
+	MaxContactImageBytes       = 20 * 1024 * 1024
+	MaxContactImagesBytes      = 60 * 1024 * 1024
+	MaxContactMethodsJSONBytes = 85 * 1024 * 1024
+	MinContactImageDimension   = 1
+	MaxContactImageDimension   = 32768
+	MaxContactImagePixels      = 100_000_000
 )
 
 type ContactMethod struct {
@@ -154,7 +157,9 @@ func validateContactImage(value string) (int, error) {
 	if format != strings.TrimPrefix(mediaType, "image/") && (mediaType != "image/jpeg" || format != "jpeg") {
 		return 0, fmt.Errorf("image content does not match declared MIME type")
 	}
-	if config.Width < 64 || config.Height < 64 || config.Width > 2048 || config.Height > 2048 || int64(config.Width)*int64(config.Height) > 4_000_000 {
+	if config.Width < MinContactImageDimension || config.Height < MinContactImageDimension ||
+		config.Width > MaxContactImageDimension || config.Height > MaxContactImageDimension ||
+		int64(config.Width)*int64(config.Height) > MaxContactImagePixels {
 		return 0, fmt.Errorf("image dimensions exceed allowed limits")
 	}
 	if _, _, err := image.Decode(bytes.NewReader(data)); err != nil {

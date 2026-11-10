@@ -43,6 +43,15 @@ func contactTestURL(data []byte, mime string) string {
 	return "data:image/" + mime + ";base64," + base64.StdEncoding.EncodeToString(data)
 }
 
+func contactTestPNGWithDimensions(t *testing.T, width, height uint32) []byte {
+	t.Helper()
+	data := append([]byte{}, contactTestPNG(t, 1, 1, 0)...)
+	binary.BigEndian.PutUint32(data[16:20], width)
+	binary.BigEndian.PutUint32(data[20:24], height)
+	binary.BigEndian.PutUint32(data[29:33], crc32.ChecksumIEEE(data[12:29]))
+	return data
+}
+
 func TestContactMethodsValidationBoundaries(t *testing.T) {
 	base := ContactMethod{ID: "support", Label: "客服", Text: "hello", Enabled: true}
 	valid := func() []ContactMethod { return []ContactMethod{base} }
@@ -106,10 +115,9 @@ func TestContactImageRejectsInvalidPayloads(t *testing.T) {
 		"base64 newline":   "data:image/png;base64,\n" + base64.StdEncoding.EncodeToString(valid),
 		"wrong MIME":       contactTestURL(valid, "jpeg"),
 		"truncated PNG":    contactTestURL(valid[:len(valid)/2], "png"),
-		"too narrow":       contactTestURL(contactTestPNG(t, 63, 64, 0), "png"),
-		"too wide":         contactTestURL(contactTestPNG(t, 2049, 64, 0), "png"),
-		"too many pixels":  contactTestURL(contactTestPNG(t, 2048, 2048, 0), "png"),
-		"oversize encoded": "data:image/png;base64," + strings.Repeat("A", 140000),
+		"too wide":         contactTestURL(contactTestPNGWithDimensions(t, MaxContactImageDimension+1, 1), "png"),
+		"too many pixels":  contactTestURL(contactTestPNGWithDimensions(t, 10_001, 10_000), "png"),
+		"oversize encoded": "data:image/png;base64," + strings.Repeat("A", base64.StdEncoding.EncodedLen(MaxContactImageBytes)+1),
 	}
 	for name, value := range cases {
 		t.Run(name, func(t *testing.T) { _, err := validateContactImage(value); require.Error(t, err) })
@@ -118,8 +126,31 @@ func TestContactImageRejectsInvalidPayloads(t *testing.T) {
 	require.NoError(t, jpeg.Encode(&jpg, image.NewGray(image.Rect(0, 0, 64, 64)), nil))
 	_, err := validateContactImage(contactTestURL(jpg.Bytes(), "jpeg"))
 	require.NoError(t, err)
-	_, err = validateContactImage(contactTestURL(contactTestPNG(t, 2048, 64, 0), "png"))
-	require.NoError(t, err)
+}
+
+func TestContactImageAcceptsGenerousDimensionsAndPayloads(t *testing.T) {
+	for _, dimensions := range []struct {
+		name          string
+		width, height int
+	}{
+		{name: "one pixel", width: 1, height: 1},
+		{name: "below old minimum", width: 63, height: 64},
+		{name: "above old maximum", width: 2049, height: 64},
+		{name: "old pixel limit", width: 2048, height: 2048},
+		{name: "large QR source", width: 4096, height: 4096},
+	} {
+		t.Run(dimensions.name, func(t *testing.T) {
+			_, err := validateContactImage(contactTestURL(contactTestPNG(t, dimensions.width, dimensions.height, 0), "png"))
+			require.NoError(t, err)
+		})
+	}
+
+	t.Run("PNG above old byte limit", func(t *testing.T) {
+		data := contactTestPNG(t, 64, 64, 200*1024)
+		imageBytes, err := validateContactImage(contactTestURL(data, "png"))
+		require.NoError(t, err)
+		require.Equal(t, len(data), imageBytes)
+	})
 }
 
 func TestContactMethodJSONRequiresTypedNonNullFields(t *testing.T) {
@@ -162,7 +193,7 @@ func TestContactMethodJSONRequiresTypedNonNullFields(t *testing.T) {
 func TestContactPayloadSizeAndInjectionEscaping(t *testing.T) {
 	baseline, err := json.Marshal(PublicSettingsInjectionPayload{HomeContactEnabled: true, ContactMethods: []ContactMethod{}})
 	require.NoError(t, err)
-	for _, size := range []int{0, MaxContactImageBytes} {
+	for _, size := range []int{0, 300 * 1024} {
 		methods := []ContactMethod{{ID: "support", Label: "客服", Text: "</script><script>alert(1)</script>", ImageDataURL: contactTestURL(contactTestPNG(t, 256, 256, size), "png"), Enabled: true}}
 		if size != 0 {
 			for i := 1; i < 6; i++ {
