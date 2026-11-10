@@ -3,7 +3,7 @@
     :is="layout === 'nav' ? 'div' : 'section'"
     v-if="visibleMethods.length"
     ref="contactRoot"
-    :class="layout === 'nav' ? 'relative z-50 shrink-0' : 'relative z-10 w-full px-4 py-6 sm:px-6'"
+    :class="layout === 'nav' ? 'z-50 shrink-0 lg:relative' : 'relative z-10 w-full px-4 py-6 sm:px-6'"
     :aria-labelledby="layout === 'section' ? 'home-contact-title' : undefined"
   >
     <button
@@ -30,7 +30,7 @@
       v-if="layout === 'section' || menuOpen"
       :id="layout === 'nav' ? 'home-contact-menu' : undefined"
       :class="layout === 'nav'
-        ? 'absolute right-0 top-full mt-2 w-[min(24rem,calc(100vw-2rem))] rounded-xl border border-gray-200 bg-white p-3 shadow-xl dark:border-dark-700 dark:bg-dark-900'
+        ? 'absolute inset-x-4 top-full mt-2 rounded-xl border border-gray-200 bg-white p-3 shadow-xl dark:border-dark-700 dark:bg-dark-900 lg:inset-x-auto lg:right-0 lg:w-[min(24rem,calc(100vw-2rem))]'
         : 'mx-auto mt-3 flex max-w-5xl flex-wrap justify-center gap-3'"
     >
       <h2 v-if="layout === 'nav'" class="mb-2 px-1 text-sm font-semibold text-gray-700 dark:text-dark-100">{{ t('contactMethods.title') }}</h2>
