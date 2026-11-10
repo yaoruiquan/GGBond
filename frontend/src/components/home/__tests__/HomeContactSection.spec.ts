@@ -24,6 +24,19 @@ beforeEach(() => { vi.useFakeTimers(); copyToClipboard.mockReset() })
 afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks() })
 
 describe('Home contact floating preview', () => {
+  it('places contacts behind a compact navigation trigger when requested', async () => {
+    const wrapper = mount(HomeContactSection, { props: { methods, layout: 'nav' }, attachTo: document.body })
+    const trigger = wrapper.get('button[aria-controls="home-contact-menu"]')
+    expect(wrapper.text()).not.toContain('support-id')
+    expect(wrapper.find('#home-contact-menu').exists()).toBe(false)
+    await trigger.trigger('click')
+    expect(wrapper.get('#home-contact-menu').text()).toContain('support-id')
+    expect(wrapper.find('#home-contact-menu img').exists()).toBe(false)
+    document.body.dispatchEvent(new Event('pointerdown', { bubbles: true }))
+    await nextTick()
+    expect(wrapper.find('#home-contact-menu').exists()).toBe(false)
+  })
+
   it('shows compact text with no QR image until requested', async () => {
     const { wrapper } = setup()
     expect(wrapper.text()).toContain('support-id')

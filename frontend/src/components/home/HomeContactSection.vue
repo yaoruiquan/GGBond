@@ -1,9 +1,41 @@
 <template>
-  <section v-if="visibleMethods.length" class="relative z-10 w-full px-4 py-6 sm:px-6" aria-labelledby="home-contact-title">
-    <div class="mx-auto max-w-5xl border-t border-gray-200/70 pt-5 dark:border-dark-700">
+  <component
+    :is="layout === 'nav' ? 'div' : 'section'"
+    v-if="visibleMethods.length"
+    ref="contactRoot"
+    :class="layout === 'nav' ? 'relative z-50 shrink-0' : 'relative z-10 w-full px-4 py-6 sm:px-6'"
+    :aria-labelledby="layout === 'section' ? 'home-contact-title' : undefined"
+  >
+    <button
+      v-if="layout === 'nav'"
+      ref="menuTrigger"
+      type="button"
+      class="inline-flex min-h-10 items-center gap-1 rounded-lg px-2 text-sm font-medium text-gray-600 transition-colors hover:bg-white/70 hover:text-primary-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary-500 dark:text-dark-200 dark:hover:bg-white/10 dark:hover:text-primary-300 sm:px-3"
+      :aria-label="t('contactMethods.title')"
+      :title="t('contactMethods.title')"
+      aria-controls="home-contact-menu"
+      :aria-expanded="menuOpen"
+      @click="menuOpen = !menuOpen"
+    >
+      <Icon name="chat" size="sm" />
+      <span class="hidden sm:inline">{{ t('contactMethods.title') }}</span>
+      <Icon name="chevronDown" size="sm" class="hidden transition-transform sm:block" :class="menuOpen ? 'rotate-180' : ''" />
+    </button>
+
+    <div v-if="layout === 'section'" class="mx-auto max-w-5xl border-t border-gray-200/70 pt-5 dark:border-dark-700">
       <h2 id="home-contact-title" class="text-center text-sm font-medium text-gray-500 dark:text-dark-400">{{ t('contactMethods.title') }}</h2>
-      <div class="mt-3 flex flex-wrap justify-center gap-3">
-        <article v-for="method in visibleMethods" :key="method.id" class="flex max-w-full flex-wrap items-center justify-center gap-x-3 gap-y-2 rounded-xl border border-gray-200/80 bg-white/70 px-4 py-3 dark:border-dark-700 dark:bg-dark-900/70">
+    </div>
+
+    <div
+      v-if="layout === 'section' || menuOpen"
+      :id="layout === 'nav' ? 'home-contact-menu' : undefined"
+      :class="layout === 'nav'
+        ? 'absolute right-0 top-full mt-2 w-[min(24rem,calc(100vw-2rem))] rounded-xl border border-gray-200 bg-white p-3 shadow-xl dark:border-dark-700 dark:bg-dark-900'
+        : 'mx-auto mt-3 flex max-w-5xl flex-wrap justify-center gap-3'"
+    >
+      <h2 v-if="layout === 'nav'" class="mb-2 px-1 text-sm font-semibold text-gray-700 dark:text-dark-100">{{ t('contactMethods.title') }}</h2>
+      <div :class="layout === 'nav' ? 'max-h-[min(70vh,32rem)] space-y-2 overflow-y-auto' : 'contents'">
+        <article v-for="method in visibleMethods" :key="method.id" :class="layout === 'nav' ? 'flex max-w-full flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-gray-200/80 bg-gray-50/70 px-3 py-2 dark:border-dark-700 dark:bg-dark-800/70' : 'flex max-w-full flex-wrap items-center justify-center gap-x-3 gap-y-2 rounded-xl border border-gray-200/80 bg-white/70 px-4 py-3 dark:border-dark-700 dark:bg-dark-900/70'">
           <span class="min-w-0 max-w-full break-words text-sm font-medium text-gray-800 dark:text-dark-100">{{ method.label }}</span>
           <span v-if="method.text" class="max-w-full whitespace-pre-wrap break-words text-sm text-gray-500 dark:text-dark-400 sm:max-w-sm">{{ method.text }}</span>
           <div class="flex shrink-0 items-center gap-3">
@@ -58,7 +90,7 @@
         <p v-if="activeMethod.text" class="mt-2 max-h-20 overflow-auto whitespace-pre-wrap break-words text-center text-xs text-gray-500">{{ activeMethod.text }}</p>
       </div>
     </Teleport>
-  </section>
+  </component>
 </template>
 
 <script setup lang="ts">
@@ -68,12 +100,16 @@ import type { ContactMethod } from '@/types'
 import Icon from '@/components/icons/Icon.vue'
 import { useClipboard } from '@/composables/useClipboard'
 
-const props = defineProps<{ methods: ContactMethod[] }>()
+const props = withDefaults(defineProps<{ methods: ContactMethod[]; layout?: 'nav' | 'section' }>(), { layout: 'section' })
 const { t } = useI18n()
 const { copyToClipboard } = useClipboard()
+const layout = computed(() => props.layout)
 const visibleMethods = computed(() => props.methods.filter(method => method.enabled && (method.text.trim() || method.image_data_url)))
 const activeId = ref<string | null>(null)
 const activeMethod = computed(() => visibleMethods.value.find(method => method.id === activeId.value) ?? null)
+const menuOpen = ref(false)
+const contactRoot = ref<HTMLElement | null>(null)
+const menuTrigger = ref<HTMLButtonElement | null>(null)
 const popover = ref<HTMLElement | null>(null)
 const popoverStyle = ref<Record<string, string>>({ visibility: 'hidden' })
 const imageFailed = ref(false)
@@ -164,6 +200,7 @@ function focusPreview(event: KeyboardEvent) {
 
 function onDocumentPointerDown(event: PointerEvent) {
   const target = event.target
+  if (target instanceof Node && !contactRoot.value?.contains(target)) menuOpen.value = false
   if (target instanceof Node && !trigger?.contains(target) && !popover.value?.contains(target)) close()
 }
 
@@ -171,6 +208,11 @@ function onDocumentKeyDown(event: KeyboardEvent) {
   if (event.key === 'Escape' && activeId.value) {
     event.preventDefault()
     close(true)
+  }
+  if (event.key === 'Escape' && menuOpen.value) {
+    event.preventDefault()
+    menuOpen.value = false
+    menuTrigger.value?.focus({ preventScroll: true })
   }
 }
 

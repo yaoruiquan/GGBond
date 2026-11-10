@@ -99,17 +99,22 @@ describe('HomeView brand landing', () => {
     expect(wrapper.get('iframe').attributes('src')).toBe('https://example.com/home')
   })
 
-  it.each(['', '<section id="custom-home">Tenant home</section>', 'https://example.com/home'])(
-    'shows published contacts outside the main content in Home mode %s', (homeContent) => {
+  it.each([
+    ['', 'nav'],
+    ['<section id="custom-home">Tenant home</section>', 'section'],
+    ['https://example.com/home', 'section'],
+  ])('shows published contacts in the %s home layout', (homeContent, layout) => {
       const visible = { id: 'support', label: '客服微信', text: 'support-id', image_data_url: '', enabled: true }
       const hidden = { ...visible, id: 'draft', text: 'hidden-contact', enabled: false }
       const wrapper = mountHome({ home_content: homeContent, home_contact_enabled: true, contact_methods: [hidden, visible] })
       const sections = wrapper.findAllComponents(HomeContactSection)
       expect(sections).toHaveLength(1)
       expect(sections[0].props('methods')).toEqual([visible])
-      expect(sections[0].element.parentElement).toBe(wrapper.element)
-      if (!homeContent) {
-        expect(sections[0].element.nextElementSibling?.tagName).toBe('FOOTER')
+      expect(sections[0].props('layout') ?? 'section').toBe(layout)
+      if (layout === 'nav') {
+        expect(sections[0].element.closest('nav')).not.toBeNull()
+      } else {
+        expect(sections[0].element.parentElement).toBe(wrapper.element)
       }
     },
   )

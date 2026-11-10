@@ -48,6 +48,7 @@
           </router-link>
 
           <div class="col-start-2 row-start-1 flex items-center justify-self-end gap-1 sm:gap-2 lg:col-start-3">
+            <HomeContactSection v-if="contactMethods.length" :methods="contactMethods" layout="nav" />
             <LocaleSwitcher />
             <a
               v-if="docUrl"
@@ -156,7 +157,7 @@
 
     </template>
 
-    <HomeContactSection v-if="contactMethods.length" :methods="contactMethods" />
+    <HomeContactSection v-if="contactMethods.length && homeContent" :methods="contactMethods" />
 
     <footer v-if="!homeContent" class="relative z-10 py-6 text-center text-xs text-gray-500 dark:text-dark-400">
       &copy; {{ currentYear }} {{ siteName }}. {{ t('home.footer.allRightsReserved') }}
