@@ -484,3 +484,9 @@ pnpm run build
 本地日志：`/tmp/ggbond-currency-tests-final.log`、`/tmp/ggbond-backend-currency-tests-final.log`、`/tmp/ggbond-currency-mixed-channel-tests2.log`、`/tmp/ggbond-currency-final-extra-tests.log`、`/tmp/ggbond-currency-refund-query-tests.log`、`/tmp/ggbond-currency-build-complete.log`。浏览器截图位于忽略目录 `output/playwright/currency-{desktop,mobile}-{light,dark}.png`。页面接口为本地 fixture；尚未完成真实支付网关、真实外汇故障环境或生产 PostgreSQL 的上线验收。
 
 审查后日志：`/tmp/ggbond-review-frontend-final.log`、`/tmp/ggbond-review-backend-final.log`、`/tmp/ggbond-review-email-tests.log`、`/tmp/ggbond-review-lint-final.log`、`/tmp/ggbond-review-typecheck.log`、`/tmp/ggbond-review-build-final.log`。用户已授权本轮审查后提交 Git；提交不包含生产配置变更。
+
+## 11. 发布检查（2026-11-10）
+
+用户已授权推送及部署。首轮发布 `v2026.11.10-3` 被 CI 阻止，未进入镜像发布或生产部署：汇率响应关闭缺少显式错误处理，两个管理员设置契约遗漏新公开字段，一个既有模型映射测试受到其他测试修改的全局配置影响。已补齐关闭处理、契约断言与测试配置隔离，并覆盖 Grok 跨客户端映射开启场景；定向 API 契约、汇率及模型映射测试通过。重新发布仍须通过完整 CI 与安全门禁。
+
+迁移前已在生产 PostgreSQL 的临时表副本演练迁移 250：相关字段无超出新整数范围的数据，转换后金额逐项不变；事务已回滚，正式表未修改。实际部署仍由既有流程先生成并校验私有备份，再启动候选执行迁移。未修改生产展示汇率、充值倍率或余额。发布完成后以[部署记录](../../deploy/production/README.md)为准。

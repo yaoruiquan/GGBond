@@ -89,7 +89,7 @@ func (s *PaymentExchangeRateService) fetch(ctx context.Context, now time.Time) (
 	if err != nil {
 		return nil, fmt.Errorf("fetch payment exchange rate: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("exchange rate provider status: %d", resp.StatusCode)
 	}

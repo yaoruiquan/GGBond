@@ -1,6 +1,10 @@
 package service
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/Wei-Shaw/sub2api/internal/pkg/xai"
+)
 
 func TestResolveOpenAIForwardModel(t *testing.T) {
 	tests := []struct {
@@ -296,6 +300,10 @@ func TestResolveOpenAIForwardMappedModels_CompactMappingPrecedence(t *testing.T)
 }
 
 func TestCanonicalOpenAIAccountSchedulingModelMatchesForwardSemantics(t *testing.T) {
+	original := xai.RuntimeModelMappingOptions()
+	t.Cleanup(func() { xai.SetRuntimeModelMappingOptions(original) })
+	xai.SetRuntimeModelMappingOptions(xai.ModelMappingOptions{})
+
 	tests := []struct {
 		name    string
 		account *Account
@@ -331,6 +339,16 @@ func TestCanonicalOpenAIAccountSchedulingModelMatchesForwardSemantics(t *testing
 			}
 		})
 	}
+	t.Run("Grok OAuth honors enabled cross-client mapping", func(t *testing.T) {
+		xai.SetRuntimeModelMappingOptions(xai.ModelMappingOptions{
+			DefaultText:          "grok-4.6",
+			EnableCrossClientMap: true,
+		})
+		account := &Account{Platform: PlatformGrok, Type: AccountTypeOAuth}
+		if got := canonicalOpenAIAccountSchedulingModel(account, "gpt-5.6"); got != "grok-4.6" {
+			t.Fatalf("canonical scheduling model = %q, want Grok cross-client target", got)
+		}
+	})
 }
 
 func TestResolveOpenAIErrorSchedulingModelPrefersActualUpstreamModel(t *testing.T) {
