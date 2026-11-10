@@ -2,9 +2,11 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import AccountTestModal from '../AccountTestModal.vue'
 
-const { getAvailableModels, copyToClipboard } = vi.hoisted(() => ({
+const { getAvailableModels, copyToClipboard, getOpenAIVideoTask, getOpenAIVideoContent } = vi.hoisted(() => ({
   getAvailableModels: vi.fn(),
-  copyToClipboard: vi.fn()
+  copyToClipboard: vi.fn(),
+  getOpenAIVideoTask: vi.fn(),
+  getOpenAIVideoContent: vi.fn()
 }))
 
 vi.mock('@/api/admin', () => ({
@@ -21,10 +23,16 @@ vi.mock('@/composables/useClipboard', () => ({
   })
 }))
 
+vi.mock('@/api/admin/accounts', () => ({
+  getOpenAIVideoTask,
+  getOpenAIVideoContent
+}))
+
 vi.mock('vue-i18n', async () => {
   const actual = await vi.importActual<typeof import('vue-i18n')>('vue-i18n')
   const messages: Record<string, string> = {
-    'admin.accounts.imagePromptDefault': 'Generate a cute orange cat astronaut sticker on a clean pastel background.'
+    'admin.accounts.imagePromptDefault': 'Generate a cute orange cat astronaut sticker on a clean pastel background.',
+    'admin.accounts.videoPromptDefault': 'A red ball bouncing once on a white floor, short simple motion.'
   }
   return {
     ...actual,
@@ -97,6 +105,8 @@ describe('AccountTestModal', () => {
       { id: 'gemini-3.1-flash-image', display_name: 'Gemini 3.1 Flash Image' }
     ])
     copyToClipboard.mockReset()
+    getOpenAIVideoTask.mockReset()
+    getOpenAIVideoContent.mockReset()
     Object.defineProperty(globalThis, 'localStorage', {
       value: {
         getItem: vi.fn((key: string) => (key === 'auth_token' ? 'test-token' : null)),
@@ -244,6 +254,7 @@ describe('AccountTestModal', () => {
     await flushPromises()
 
     expect((wrapper.vm as any).testMode).toBe('video')
+    expect((wrapper.vm as any).testPrompt).toBe('A red ball bouncing once on a white floor, short simple motion.')
     expect(wrapper.text()).toContain('admin.accounts.openai.videoSeconds')
     await (wrapper.vm as any).startTest()
     await flushPromises()
@@ -253,6 +264,7 @@ describe('AccountTestModal', () => {
     const [, request] = (global.fetch as any).mock.calls[0]
     expect(JSON.parse(request.body)).toMatchObject({
       model_id: 'sora-2',
+      prompt: 'A red ball bouncing once on a white floor, short simple motion.',
       mode: 'video',
       video: { seconds: 4, size: '1280x720' }
     })
@@ -265,5 +277,37 @@ describe('AccountTestModal', () => {
     await (wrapper.vm as any).startTest()
     expect(confirmSpy).toHaveBeenCalledOnce()
     expect(global.fetch).toHaveBeenCalledTimes(1)
+  })
+
+  it('OpenAI 视频任务完成后自动下载并显示视频预览', async () => {
+    sessionStorage.removeItem('sub2api:admin:openai-video-task:42')
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    getAvailableModels.mockResolvedValue([{ id: 'sora-2', display_name: 'Sora 2' }])
+    getOpenAIVideoTask.mockResolvedValue({ id: 'video_task_42', status: 'completed' })
+    getOpenAIVideoContent.mockResolvedValue(new Blob(['video'], { type: 'video/mp4' }))
+    vi.stubGlobal('URL', {
+      createObjectURL: vi.fn(() => 'blob:video-preview'),
+      revokeObjectURL: vi.fn()
+    })
+    global.fetch = vi.fn().mockResolvedValue(createStreamResponse([
+      'data: {"type":"video_task","task_id":"video_task_42","status":"queued"}\n'
+    ])) as any
+
+    const wrapper = mountModal({
+      id: 42,
+      name: 'OpenAI Video Account',
+      platform: 'openai',
+      type: 'apikey',
+      status: 'active',
+      credentials: { openai_capabilities: ['videos'] }
+    })
+    await wrapper.setProps({ show: true })
+    await flushPromises()
+    await (wrapper.vm as any).startTest()
+    await flushPromises()
+
+    expect(getOpenAIVideoTask).toHaveBeenCalledWith(42, 'video_task_42', expect.any(Object))
+    expect(getOpenAIVideoContent).toHaveBeenCalledWith(42, 'video_task_42', expect.any(Object))
+    expect(wrapper.find('video').attributes('src')).toBe('blob:video-preview')
   })
 })

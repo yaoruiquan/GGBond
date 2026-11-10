@@ -458,6 +458,7 @@ const videoTaskError = ref('')
 const videoTaskIdInput = ref('')
 const videoBusy = ref(false)
 let videoController: AbortController | null = null
+let videoPollGeneration = 0
 const isOpenAIVideoReady = computed(() => ['completed', 'succeeded'].includes(videoTaskStatus.value.toLowerCase()))
 const videoTaskStorageKey = computed(() => props.account ? `sub2api:admin:openai-video-task:${props.account.id}` : '')
 const grokTestMode = ref<'text' | 'image' | 'video' | 'search' | 'tts' | 'stt' | 'realtime'>('text')
@@ -807,6 +808,7 @@ watch(
         const caps = props.account.credentials?.openai_capabilities
         if (Array.isArray(caps) && caps.length === 1 && caps[0] === 'videos') testMode.value = 'video'
       }
+      applyDefaultPromptForMode()
       if (isGrokAccount.value) {
         pickDefaultModelForMode()
         applyDefaultPromptForMode()
@@ -824,6 +826,12 @@ watch(grokTestMode, () => {
   clearMediaUploads()
   pickDefaultModelForMode()
   applyDefaultPromptForMode()
+})
+
+watch(testMode, () => {
+  if (isOpenAIAccount.value && testMode.value === 'video' && !testPrompt.value.trim()) {
+    applyDefaultPromptForMode()
+  }
 })
 
 const loadAvailableModels = async () => {
@@ -875,9 +883,34 @@ const handleClose = () => {
 }
 
 const cancelVideoRequest = () => {
+  videoPollGeneration += 1
+  abortVideoRequest()
+}
+
+const abortVideoRequest = () => {
   videoController?.abort()
   videoController = null
   videoBusy.value = false
+}
+
+const pollVideoTaskUntilReady = async (taskId: string) => {
+  const generation = videoPollGeneration
+  let delay = 1500
+
+  while (generation === videoPollGeneration && videoTaskId.value === taskId) {
+    await refreshVideoTask()
+    if (generation !== videoPollGeneration || videoTaskId.value !== taskId) return
+
+    const status = videoTaskStatus.value.toLowerCase()
+    if (isOpenAIVideoReady.value) {
+      await loadVideoContent()
+      return
+    }
+    if (['failed', 'cancelled', 'canceled', 'error'].includes(status)) return
+
+    await new Promise((resolve) => window.setTimeout(resolve, delay))
+    delay = Math.min(delay * 1.5, 8000)
+  }
 }
 
 const restoreVideoTask = () => {
@@ -920,7 +953,7 @@ const saveVideoTask = () => {
 
 const refreshVideoTask = async () => {
   if (!props.account || !videoTaskId.value || videoBusy.value) return
-  cancelVideoRequest()
+  abortVideoRequest()
   const controller = new AbortController()
   videoController = controller
   videoBusy.value = true
@@ -943,7 +976,7 @@ const copyVideoTaskId = () => copyToClipboard(videoTaskId.value, t('admin.accoun
 
 const loadVideoContent = async () => {
   if (!props.account || !videoTaskId.value || !isOpenAIVideoReady.value || videoBusy.value) return
-  cancelVideoRequest()
+  abortVideoRequest()
   const controller = new AbortController()
   videoController = controller
   const taskId = videoTaskId.value
@@ -1188,6 +1221,7 @@ const handleEvent = (event: {
       saveVideoTask()
       addLine(t('admin.accounts.openai.videoTaskAccepted', { id: videoTaskId.value }), 'text-cyan-300')
       status.value = 'success'
+      if (videoTaskId.value) void pollVideoTaskUntilReady(videoTaskId.value)
       break
 
     case 'status':
