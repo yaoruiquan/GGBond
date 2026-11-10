@@ -1,10 +1,19 @@
 # 单机蓝绿部署
 
-**日期：2026-11-10；状态：CI、安全检查、镜像发布及真实生产 SSH 蓝绿部署全部通过。**
+**日期：2026-11-10；状态：截至 `v2026.11.10-2` 的 CI、安全检查、镜像发布及真实生产 SSH 蓝绿部署全部通过。**
 
 本目录用于单机 Docker Compose + Caddy 的蓝绿发布。蓝、绿共用 PostgreSQL、Redis、插件文件和定价目录；每个实例的配置目录和插件 runtime socket 保持隔离。单机蓝绿不提供主机高可用，应用回滚不会恢复数据库，也不保证无限时长的流式请求不中断。
 
 ## 已验证的生产发布（2026-11-10）
+
+### `v2026.11.10-2` 联系方式图片限额放宽
+
+- 应用源码：`79be1626ff474b732cf64724f11c9436bf4399cd`；GitHub Actions run：`42779690963`，所有任务成功。
+- 生产镜像：`ghcr.io/yaoruiquan/ggbond@sha256:49a452fba8659246bc9445f16010ab3cad3086fbc6e897bb6205bbbe65614453`；状态 generation `5`，活动色 `blue`。
+- 切流后完成 300 秒排空，旧 `green` 正常退出，无 `pending.json`。本次数据库备份及切换结果保存在 `shared/state/transactions/blue-f8077a3b32e2ad486be2146cef24d1df/`。
+- 首页、`/health`、`/api/v1/settings/public` 均返回 200；首页上传组件由真实浏览器验证可接收 4096×4096 PNG 和 48×32 PNG。
+
+### `v2026.11.10-1` 联系方式功能
 
 - 目标域名：`ggbond.wiki`；Compose 项目：`ggbond-production`；部署根目录：`/opt/ggbond-production`。
 - 发布：`v2026.11.10-1`；应用源码：`594c8b34f6f25e6e66c3fefbceb5d193978ca8f6`；GitHub Actions run：`42775387985`，所有任务成功。
