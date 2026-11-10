@@ -51,7 +51,10 @@ jobs:
         with:
           ref: ${{ github.sha }}
       - name: Preserve tooling for releases of older tags
-        run: cp -R .github/release-tools "$RUNNER_TEMP/release-tools"
+        run: |
+          cp -R .github/release-tools "$RUNNER_TEMP/release-tools"
+          mkdir "$RUNNER_TEMP/production-tooling"
+          cp deploy/production/{production.sh,production.py,runtime.py,state.py,ssh-deploy.py,docker-compose.yml,Caddyfile.template,README.md} "$RUNNER_TEMP/production-tooling/"
       - name: Checkout selected application source
         uses: actions/checkout@v6
         with:
@@ -77,12 +80,23 @@ jobs:
           retention-days: 1
       - uses: actions/upload-artifact@v7
         with:
+          name: production-tooling
+          path: ${{ runner.temp }}/production-tooling/
+          retention-days: 1
+      - uses: actions/upload-artifact@v7
+        with:
           name: version-file
           path: backend/cmd/server/VERSION
           retention-days: 1
 
-  build-frontend:
+  ci:
     needs: prepare
+    uses: ./.github/workflows/backend-ci.yml
+    with:
+      source_ref: ${{ needs.prepare.outputs.sha }}
+
+  build-frontend:
+    needs: [prepare, ci]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -107,7 +121,7 @@ jobs:
           retention-days: 1
 
   build-binaries:
-    needs: [prepare, build-frontend]
+    needs: [prepare, ci, build-frontend]
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -193,7 +207,7 @@ jobs:
           key: ${{ steps.go-cache.outputs.cache-primary-key }}
 
   release:
-    needs: [prepare, build-binaries]
+    needs: [prepare, ci, build-binaries]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -204,6 +218,11 @@ jobs:
       RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
       RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
       RELEASE_SHA: ${{ needs.prepare.outputs.sha }}
+    outputs:
+      ghcr_repository: ${{ steps.images.outputs.ghcr_repository }}
+      ghcr_digest: ${{ steps.images.outputs.ghcr_digest }}
+      ghcr_image_ref: ${{ steps.images.outputs.ghcr_image_ref }}
+      image_published: ${{ steps.images.outputs.image_published }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -251,6 +270,7 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Build images and publish manifests
+        id: images
         env:
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME || 'skip' }}
         run: bash "$RUNNER_TEMP/release-tools/release-images.sh"
@@ -292,6 +312,7 @@ jobs:
             dist/checksums.txt
             dist/artifacts.json
             dist/metadata.json
+            ${{ runner.temp }}/release-image.json
           if-no-files-found: error
           retention-days: 3
 
@@ -411,3 +432,12 @@ jobs:
           git add backend/cmd/server/VERSION
           git commit -m "chore: sync VERSION to ${VERSION} [skip ci]"
           git push origin HEAD:${{ github.event.repository.default_branch }}
+
+  deploy-production:
+    needs: [prepare, release]
+    if: ${{ needs.prepare.outputs.dry_run != 'true' && needs.release.outputs.image_published == 'true' }}
+    uses: ./.github/workflows/deploy-production.yml
+    with:
+      source_sha: ${{ needs.prepare.outputs.sha }}
+      image: ${{ needs.release.outputs.ghcr_image_ref }}
+    secrets: inherit

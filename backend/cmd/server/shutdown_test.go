@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
-	"golang.org/x/net/http2"
 )
 
 type shutdownProbe struct {
@@ -45,13 +44,12 @@ func TestShutdownHTTPServerTracksActiveSSE(t *testing.T) {
 				defer close(finished)
 				w.Header().Set("Content-Type", "text/event-stream")
 				_, _ = io.WriteString(w, "data: started\n\n")
-				w.(http.Flusher).Flush()
+				require.NoError(t, http.NewResponseController(w).Flush())
 				<-release
 				_, _ = io.WriteString(w, "data: completed\n\n")
 			}))
 			server.EnableHTTP2 = protocol == "http2"
 			if protocol == "h2c" {
-				require.NoError(t, http2.ConfigureServer(server.Config, &http2.Server{}))
 				protocols := new(http.Protocols)
 				protocols.SetHTTP1(true)
 				protocols.SetUnencryptedHTTP2(true)
@@ -74,7 +72,7 @@ func TestShutdownHTTPServerTracksActiveSSE(t *testing.T) {
 			}
 			response, err := client.Get(server.URL)
 			require.NoError(t, err)
-			defer response.Body.Close()
+			defer func() { _ = response.Body.Close() }()
 			if protocol == "http1" {
 				require.Equal(t, 1, response.ProtoMajor)
 			} else {

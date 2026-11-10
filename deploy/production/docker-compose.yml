@@ -14,6 +14,8 @@ x-app: &app
     SERVER_PORT: "8080"
     SERVER_MODE: release
     SHUTDOWN_TIMEOUT_SECONDS: "60"
+    PLUGINS_DATA_DIR: /app/data/plugins
+    PRICING_DATA_DIR: /app/data/pricing
     DATABASE_HOST: postgres
     DATABASE_PORT: "5432"
     DATABASE_USER: ${POSTGRES_USER:-sub2api}
@@ -50,11 +52,21 @@ services:
   app-blue:
     <<: *app
     image: ${BLUE_IMAGE:?BLUE_IMAGE is managed by production.sh}
-    volumes: ["blue_data:/app/data"]
+    volumes:
+      - blue_data:/app/data
+      - plugins_data:/app/data/plugins
+      - pricing_data:/app/data/pricing
+    tmpfs:
+      - /app/data/plugins/runtime:uid=1000,gid=1000,mode=0700
   app-green:
     <<: *app
     image: ${GREEN_IMAGE:?GREEN_IMAGE is managed by production.sh}
-    volumes: ["green_data:/app/data"]
+    volumes:
+      - green_data:/app/data
+      - plugins_data:/app/data/plugins
+      - pricing_data:/app/data/pricing
+    tmpfs:
+      - /app/data/plugins/runtime:uid=1000,gid=1000,mode=0700
   caddy:
     image: caddy:2.10.2-alpine
     restart: unless-stopped
@@ -105,6 +117,8 @@ networks:
 volumes:
   blue_data:
   green_data:
+  plugins_data:
+  pricing_data:
   postgres_data:
   redis_data:
   caddy_data:

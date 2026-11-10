@@ -114,7 +114,7 @@ func validContactID(id string) bool {
 		return false
 	}
 	for _, char := range id {
-		if !(char >= 'a' && char <= 'z') && !(char >= 'A' && char <= 'Z') && !(char >= '0' && char <= '9') && char != '-' && char != '_' {
+		if (char < 'a' || char > 'z') && (char < 'A' || char > 'Z') && (char < '0' || char > '9') && char != '-' && char != '_' {
 			return false
 		}
 	}
@@ -151,7 +151,7 @@ func validateContactImage(value string) (int, error) {
 	if err != nil {
 		return 0, fmt.Errorf("invalid image data")
 	}
-	if format != strings.TrimPrefix(mediaType, "image/") && !(mediaType == "image/jpeg" && format == "jpeg") {
+	if format != strings.TrimPrefix(mediaType, "image/") && (mediaType != "image/jpeg" || format != "jpeg") {
 		return 0, fmt.Errorf("image content does not match declared MIME type")
 	}
 	if config.Width < 64 || config.Height < 64 || config.Width > 2048 || config.Height > 2048 || int64(config.Width)*int64(config.Height) > 4_000_000 {

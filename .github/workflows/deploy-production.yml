@@ -1,0 +1,81 @@
+name: Deploy production
+
+on:
+  workflow_call:
+    inputs:
+      source_sha:
+        required: true
+        type: string
+      image:
+        required: true
+        type: string
+    secrets:
+      PRODUCTION_SSH_PRIVATE_KEY:
+        required: false
+      PRODUCTION_SSH_KNOWN_HOSTS:
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    concurrency:
+      group: production-${{ github.repository }}
+      cancel-in-progress: false
+    steps:
+      - name: Check production configuration
+        id: config
+        env:
+          ENABLED: ${{ vars.PRODUCTION_DEPLOY_ENABLED }}
+          APPROVED_SHA: ${{ vars.PRODUCTION_SCHEMA_COMPATIBLE_SHA }}
+          SOURCE_SHA: ${{ inputs.source_sha }}
+          DUAL_INSTANCE: ${{ vars.PRODUCTION_DUAL_INSTANCE_APPROVED }}
+        run: |
+          if [[ "$ENABLED" != true ]]; then
+            echo 'enabled=false' >> "$GITHUB_OUTPUT"
+            echo 'Production deployment disabled: configure the production environment before enabling.' >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          test "$APPROVED_SHA" = "$SOURCE_SHA" || { echo 'Schema compatibility approval must match this source SHA' >&2; exit 1; }
+          test "$DUAL_INSTANCE" = true || { echo 'Dual-instance approval is missing' >&2; exit 1; }
+          echo 'enabled=true' >> "$GITHUB_OUTPUT"
+      - uses: actions/download-artifact@v8
+        if: steps.config.outputs.enabled == 'true'
+        with:
+          name: production-tooling
+          path: ${{ runner.temp }}/production-tooling/
+      - uses: actions/setup-python@v6
+        if: steps.config.outputs.enabled == 'true'
+        with:
+          python-version: '3.12'
+      - name: Deploy immutable image and verify production
+        if: steps.config.outputs.enabled == 'true'
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.PRODUCTION_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.PRODUCTION_SSH_KNOWN_HOSTS }}
+          DEPLOY_HOST: ${{ vars.PRODUCTION_SSH_HOST }}
+          DEPLOY_USER: ${{ vars.PRODUCTION_SSH_USER }}
+          DEPLOY_PORT: ${{ vars.PRODUCTION_SSH_PORT || '22' }}
+          DEPLOY_ROOT: ${{ vars.PRODUCTION_DEPLOY_PATH }}
+          DEPLOY_DOMAIN: ${{ vars.PRODUCTION_DOMAIN }}
+          DEPLOY_PROJECT: ${{ vars.PRODUCTION_PROJECT || 'ggbond-production' }}
+          APPROVED_SHA: ${{ vars.PRODUCTION_SCHEMA_COMPATIBLE_SHA }}
+          SOURCE_SHA: ${{ inputs.source_sha }}
+          IMAGE: ${{ inputs.image }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY" && test -n "$SSH_KNOWN_HOSTS" || { echo 'Missing production SSH credentials' >&2; exit 1; }
+          task_ssh_dir=$(mktemp -d "$RUNNER_TEMP/production-ssh.XXXXXX")
+          trap 'rm -rf "$task_ssh_dir"' EXIT
+          chmod 700 "$task_ssh_dir"
+          printf '%s\n' "$SSH_PRIVATE_KEY" > "$task_ssh_dir/key"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$task_ssh_dir/known_hosts"
+          chmod 600 "$task_ssh_dir/"*
+          python "$RUNNER_TEMP/production-tooling/ssh-deploy.py" \
+            --host "$DEPLOY_HOST" --user "$DEPLOY_USER" --port "$DEPLOY_PORT" \
+            --root "$DEPLOY_ROOT" --domain "$DEPLOY_DOMAIN" --project "$DEPLOY_PROJECT" \
+            --key-file "$task_ssh_dir/key" --known-hosts "$task_ssh_dir/known_hosts" \
+            --image "$IMAGE" --sha "$SOURCE_SHA" --schema-compatible-sha "$APPROVED_SHA" --ack-dual-instance

@@ -43,7 +43,7 @@ func (h *AccountHandler) GetVideoTestContent(c *gin.Context) {
 		response.ErrorFrom(c, err)
 		return
 	}
-	defer upstream.Body.Close()
+	defer func() { _ = upstream.Body.Close() }()
 	for _, name := range []string{"Content-Type", "Content-Length", "Content-Range", "Accept-Ranges", "ETag", "Last-Modified"} {
 		if value := upstream.Header.Get(name); value != "" {
 			c.Header(name, value)
@@ -70,7 +70,7 @@ func parseVideoTestPath(c *gin.Context) (int64, string, bool) {
 		return 0, "", false
 	}
 	for _, ch := range taskID {
-		if !(ch >= 'a' && ch <= 'z' || ch >= 'A' && ch <= 'Z' || ch >= '0' && ch <= '9' || ch == '-' || ch == '_' || ch == '.') {
+		if (ch < 'a' || ch > 'z') && (ch < 'A' || ch > 'Z') && (ch < '0' || ch > '9') && ch != '-' && ch != '_' && ch != '.' {
 			response.BadRequest(c, "Invalid video task ID")
 			return 0, "", false
 		}

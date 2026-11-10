@@ -1,80 +1,104 @@
-# 可选蓝绿部署运行手册
+# 单机蓝绿部署
 
-**日期：2026-11-02；状态：模拟测试通过，首次真实 bootstrap 进行中；deploy/rollback 尚未在真实环境演练。**
+**日期：2026-11-10；状态：部署事务、SSH 传输及真实 Caddy 隔离测试通过，真实目标部署尚未完成。**
 
-本目录用于单机 Docker Compose + 容器化 Caddy 的可选蓝绿发布，不覆盖上层通用 Compose。不是双机高可用，也不保证数据库回滚、零中断或零计费损失。
+本目录用于单机 Docker Compose + Caddy 的蓝绿发布。蓝、绿共用 PostgreSQL、Redis、插件文件和定价目录；每个实例的配置目录和插件 runtime socket 保持隔离。单机蓝绿不提供主机高可用，应用回滚不会恢复数据库，也不保证无限时长的流式请求不中断。
 
-首次 bootstrap 启动 Caddy 后，会在 `--timeout` 预算内重复检查运行配置和公网 HTTPS，以等待 ACME 证书签发；超时则保留 `pending.json` 和全部容器，不写活动状态，不删除数据。后续 deploy 不重试：切流后探测一旦失败立即恢复旧配置。
+## 发布链路
 
-## 1. 上线门禁
+Release 解析一个固定提交 SHA，对该 SHA 运行可复用 CI，全部通过后才发布镜像。镜像发布输出 `repository@sha256:...`，生产任务直接消费该 digest，不通过 `latest` 再解析版本。dry-run 不发布、不部署。
 
-执行任何真实命令前，另行审核服务器拓扑、域名及端口、当前版本、镜像架构和 digest、现有 Compose 项目名与卷归属。首次空环境与已有 GGBond 迁站是不同操作，不能通过 bootstrap 自动认领旧容器或旧卷；禁止 `down -v`。
+生产任务使用 `production` GitHub Environment。未启用时明确跳过部署；启用后，缺少配置或精确 SHA 的迁移兼容性确认会失败，不会静默跳过。VERSION 文件的机器人同步不作为部署源。
 
-- blue、green 共享同一生产 PostgreSQL/Redis，但开发环境不得误连生产。
-- 两色使用独立不可变镜像 digest；不要用 `latest` 或可变 tag 作为恢复依据。
-- 两色使用一致且固定的 JWT/TOTP 等密钥，不能在每次启动时重新生成。私有 env 不提交、不粘贴到日志。
-- 候选启动会执行数据库迁移；`AUTO_SETUP=false` 不会关闭迁移。没有兼容性证据不能确认 `--ack-schema-compatible`。
-- 数据库变更必须兼容旧实例；不兼容升级使用另行设计的维护窗口，不强行在线蓝绿。
-- 提供备份标识并不证明备份可恢复，恢复演练应按 [部署恢复门禁](../README.md#ggbond-migration-safety-and-recovery-gate) 单独完成。
-- 后台任务仅部分有跨实例协调证据。确认实际启用的任务及幂等性后才能允许短时双活；不要默认长期 `--keep-old`。
+实际部署顺序：
 
-## 2. 流量与状态约束
+1. 获取部署锁，核对活动状态、磁盘配置、Caddy 运行态和容器镜像。
+2. 核对活动实例的共享文件卷，预拉取候选 digest；传入 `--source-sha` 时核对镜像 OCI revision。
+3. 在启动候选及执行迁移前，用 PostgreSQL 容器生成 custom-format 备份，并通过 `pg_restore --list` 校验归档。
+4. 启动空闲色，通过健康检查、直连业务接口和 Caddy 配置校验。
+5. 原子替换配置并 reload；检查运行态和公网 HTTPS 的唯一部署标记。
+6. 观察新路由，继续保留旧实例，默认等待 300 秒让现有连接结束；期间持续探测新路由。
+7. 提交新活动状态，停止旧色。切流失败则恢复并验证旧配置；无法确认恢复时保留两色及 `pending.json`，拒绝继续发布。
 
-Caddy 配置只能包含一个活动色 upstream，候选通过健康与直连检查前不接公网流量。切换通过完整配置校验、原子替换、reload、运行态校验及入口观察完成，不依赖“blue 优先、停止旧色”。
+## 配置自动部署
 
-持久状态记录活动色、每色 digest 和上一版本；部署使用互斥锁。配置挂载目录而非单文件，避免原子 rename 后容器仍看到旧 inode。状态缺失、非法或与代理运行态不一致时拒绝部署，不能默认 blue。
+在仓库的 `production` Environment 配置以下变量与 secrets。服务器需要 Docker Compose v2、Python 3.9+、curl，以及预先审核过的域名、80/443 端口和现有蓝绿状态。
 
-切流失败应恢复并确认旧路由；无法确认恢复时保留两色、事务记录和配置现场，禁止继续发布。不得删除 pending 状态来绕过失败门禁。
+| 类型 | 名称 | 用途 |
+| --- | --- | --- |
+| Variable | `PRODUCTION_DEPLOY_ENABLED` | 设置为 `true` 才执行生产任务 |
+| Variable | `PRODUCTION_SSH_HOST` / `PRODUCTION_SSH_USER` | SSH 目标与部署用户 |
+| Variable | `PRODUCTION_SSH_PORT` | 默认 22 |
+| Variable | `PRODUCTION_DEPLOY_PATH` | 专用部署根目录，例如 `/opt/ggbond-production` |
+| Variable | `PRODUCTION_DOMAIN` | 域名，不含协议或路径 |
+| Variable | `PRODUCTION_PROJECT` | 稳定且专用的 Compose 项目名，默认 `ggbond-production` |
+| Variable | `PRODUCTION_SCHEMA_COMPATIBLE_SHA` | 已审核数据库向后兼容性的完整 40 位提交 SHA，必须等于本次发布 SHA |
+| Variable | `PRODUCTION_DUAL_INSTANCE_APPROVED` | 确认启用的后台任务允许短时双实例后设置 `true` |
+| Secret | `PRODUCTION_SSH_PRIVATE_KEY` | 部署专用私钥 |
+| Secret | `PRODUCTION_SSH_KNOWN_HOSTS` | 已核验的服务器 SSH 主机密钥记录 |
 
-## 3. 命令接口
-
-接口正在实现，以下描述不是已通过验收的上线指令；最终以 `production.sh --help` 和模拟测试为准。
-
-入口：`production.sh [全局参数] {bootstrap,deploy,rollback,status}`。全局参数必须写在子命令之前；门禁和 image/color 等子命令参数写在之后。包括 `status` 在内均需明确 `--env-file` 与 `--domain`。
-
-以下仅演示参数布局，不代表已经授权连接服务器；占位值必须替换为审核后的真实值，不能直接运行：
+服务器目录约定：
 
 ```text
-./deploy/production/production.sh \
-  --env-file /ABSOLUTE/PATH/production.env \
-  --domain api.example.com --project ggbond-production \
-  status
+/opt/ggbond-production/
+  shared/production.env
+  shared/state/state.json
+  shared/state/caddy/Caddyfile
+  shared/state/transactions/<token>/database.dump
+  releases/<source-sha>-<unique-id>/
+```
 
+部署工具由 workflow revision 在 prepare 阶段保存为同次运行的 artifact，发布旧 tag 时仍使用已审核的部署工具；应用镜像继续按发布源 SHA 校验。SSH 入口只上传允许列表中的部署脚本，每次写入独立 release 目录，不覆盖远端私有环境文件、不执行 `git pull`。SSH 强制校验已固定的主机密钥。自动流程只执行现有环境的 `deploy`，不自动 bootstrap，也不认领旧项目卷。
+
+`production.env` 至少包含固定且一致的 `POSTGRES_PASSWORD`、`REDIS_PASSWORD`、`JWT_SECRET`、`TOTP_ENCRYPTION_KEY`、`ADMIN_EMAIL` 和 `ADMIN_PASSWORD`，权限建议 0600。私有环境文件不提交仓库，不作为 shell 脚本 source。私有镜像须预先在服务器配置 registry 登录。
+
+## 首次启动与手动命令
+
+首次环境、已有本工具的旧版本、从旧 GGbondai 项目迁站是三种不同操作。bootstrap 仅用于显式确认的空项目，拒绝覆盖现有容器、状态或配置。禁止使用 `down -v` 迁移数据。
+
+以下占位值须替换为真实且已核验的值。全局参数写在子命令之前：
+
+```bash
 ./deploy/production/production.sh \
-  --env-file /ABSOLUTE/PATH/production.env \
+  --env-file /opt/ggbond-production/shared/production.env \
+  --state-dir /opt/ggbond-production/shared/state \
   --domain api.example.com --project ggbond-production \
   bootstrap --color blue \
-  --image ghcr.io/yaoruiquan/ggbond@sha256:REPLACE_WITH_APPROVED_DIGEST \
+  --image ghcr.io/yaoruiquan/ggbond@sha256:REPLACE_WITH_64_HEX_DIGEST \
+  --source-sha REPLACE_WITH_40_HEX_COMMIT \
   --ack-bootstrap --ack-schema-compatible --ack-dual-instance \
   --backup-ref REPLACE_WITH_VERIFIED_BACKUP_ID
 ```
 
-`status` 的只读性仅针对应用部署状态，并不表示无需 Docker 访问权限；本轮只调用帮助与 fake 测试，不执行真实 status。
+日常命令用同样的全局参数：`status`；`deploy --image <digest> [--source-sha <commit>]`；或 `rollback`。变更命令需要 `--ack-schema-compatible --ack-dual-instance --backup-ref <non-secret-id>`。rollback 使用持久记录的另一色 digest，回退前也生成数据库备份。
 
-- `--env-file`：人工准备的绝对路径，交给 Compose，不作为 shell 脚本 source。
-- `--domain`：实际域名；`--project`：专用且稳定的 Compose 项目名。
-- `--state-dir`：持久状态路径，默认本目录 `state/`，权限应限制为部署用户。
-- `--timeout`、`--observe-seconds`、`--probe-interval`：候选等待及切流观察窗口，不能代替业务验收。
-- `bootstrap`：仅用于显式确认的首次环境，需 `--ack-bootstrap`、`--color` 和 `--image`。
-- `deploy`：使用 `--image` 指定候选 digest。
-- `rollback`：使用持久记录的 previous 色和 digest，不恢复数据库。
-- 变更命令须确认 `--ack-schema-compatible`、`--ack-dual-instance` 并提供 `--backup-ref`。
-- 默认观察通过后停止旧色；`--keep-old` 只保留容器，不改变单 upstream 原则。旧 `KEEP_OLD` 环境变量不支持。
+`--timeout` 控制单次启动、拉取与备份命令的超时；`--observe-seconds` 默认 10 秒，`--drain-seconds` 默认 300 秒，`--probe-interval` 默认 2 秒。测试可将排空设为 0，生产需按请求最大时长安排。`--keep-old` 会保留旧容器，但仍需完成排空观察。不要长期双活未审核的后台任务。
 
-## 4. 停止、排空与回滚
+## 已有数据卷升级
 
-停止窗口必须覆盖 HTTP 排空和服务清理：默认 HTTP 60 秒、容器宽限 90 秒；调整排空上限时同步增加容器宽限。
+旧版给两色各自挂载 `/app/data`，没有共享子卷。新版发现活动实例没有挂载本项目的 `plugins_data` 与 `pricing_data` 时，**会在拉取/备份/候选启动前拒绝升级**，防止自动挂载空卷掩盖既有数据。
 
-`http.Server.Shutdown` 超时不会保证所有 handler 已结束。超时后仍有流式处理器与资源清理竞争的遗留风险，可能影响最终 usage/计费持久化。本方案不宣称已修复该问题。
+需先安排维护迁移：备份两色卷，识别实际活动色及文件来源；停止可能写入文件的应用实例，将活动实例的 `plugins` 内容复制到共享插件卷，将定价文件复制到共享定价卷，处理另一色的差异，再以同一 digest 重建活动实例并核对数据。保留原插件路径 `/app/data/plugins`，不要把 runtime socket 复制为持久数据。定价默认目录改为 `/app/data/pricing`；自定义 fallback/override 路径或 config.yaml 应明确迁移并在两色保持一致。没有通用的自动覆盖/合并策略，禁止用 bootstrap 绕过迁移。
 
-镜像回退只在数据库结构、Redis 状态及密钥与旧程序兼容时成立。数据库恢复需另行批准、停写并评估备份之后的数据损失，不由 rollback 自动执行。
+插件共享 `packages`、`installed` 和 staging；`/app/data/plugins/runtime` 使用每容器独立 tmpfs，避免共享 Unix socket。实例自己的 `/app/data/config.yaml` 仍位于各色独立卷，显式自定义配置必须在两色同步。
 
-## 5. 代理信任与网络
+## 长连接、恢复与备份
 
-只有 Caddy 暴露公网 80/443；数据库、Redis、应用端口和 Caddy admin 2019 不映射公网。直连源站的配置不能信任客户端自报的 Cloudflare/IP 头；使用 CDN 时按 [边缘安全说明](../EDGE_SECURITY.md) 配置精确信任链和源站防火墙，不能泛信任所有来源。
+Caddy 使用 `stream_close_delay` 推迟 reload 时关闭 WebSocket，脚本按新旧配置中较长的上限保留旧实例。超过这个窗口的 WebSocket 仍可能需要重连；普通 HTTP/SSE 停止时再由应用执行默认 60 秒 Shutdown，容器给予 90 秒宽限。该策略是有界排空，不代表对无限时长流或最终计费落库的完全保证。
 
-## 6. 验收边界
+部署会保存实际旧 Caddy 配置和目标配置快照，回退不根据新模板重建旧配置，因此更改排空时间或模板后仍可恢复原配置。无法核验恢复时，检查事务结果、两色和 Caddy 的实际状态后再处理；不要直接删除 pending 文件继续发布。旧路由确认保留或恢复后，会停止失败候选以免后台任务继续运行，保留停止的容器和日志；候选停止失败也会保留 pending 并拒绝后续部署。
 
-模拟测试应覆盖双向切流、候选/配置校验/reload/观察失败、恢复失败、状态漂移、锁冲突及每色镜像记录。fake 工具对未知命令直接失败，绝不转发真实 Docker 或 HTTP 请求。
+`database.dump` 保存于每次事务目录，权限 0600；归档列表校验不等于完整恢复演练。需制定空间监控、加密异地备份和保留策略，当前脚本不会自动删除备份。数据库迁移必须兼容旧程序；不兼容变更使用维护窗口。数据库恢复涉及停写与备份后数据损失，应单独执行，rollback 不会自动恢复。
 
-模拟测试不能证明真实 Caddy 版本兼容、TLS/DNS、镜像可拉取、迁移安全、后台任务防重或 SSE/WebSocket 与计费排空。首次真实部署前应在隔离环境确认这些项目；真实模型 smoke 可能收费，需另行授权。
+只有 Caddy 映射公网端口；应用、数据库、Redis 和 Caddy admin 均不映射公网。接入 CDN 时按 [边缘安全说明](../EDGE_SECURITY.md) 配置精确信任链。
+
+## 验证
+
+```bash
+python3 deploy/tests/production-blue-green-test.py
+python3 deploy/tests/production-ssh-test.py
+python3 deploy/tests/production-caddy-integration-test.py
+bash deploy/tests/release-deployment-test.sh
+```
+
+CI 包含上述测试。fake Docker/curl 对未知命令直接失败，不转发真实网络请求。模拟测试覆盖双向切流、拉取、镜像 revision、备份、配置校验、reload、观察、恢复、状态漂移与锁；SSH 测试覆盖固定主机密钥、配置校验、允许列表传输和拒绝隐式 bootstrap。真实 Caddy 2.10.2 完整模板配置解析已核验；Docker 隔离测试实际验证生产 reverse_proxy 块在 reload 后新请求切到 green、已有 blue SSE/WebSocket 持续收到新消息，以及共享文件卷和独立 runtime tmpfs。隔离测试提取代理块并使用 HTTP，未覆盖生产 TLS/DNS、后台任务、真实数据迁移、应用自身退出与计费，仍须在目标环境验证。

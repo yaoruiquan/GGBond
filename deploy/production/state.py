@@ -105,8 +105,9 @@ def load_state(path: Path, project: str, domain: str) -> Dict[str, Any]:
     return validate_state(read_json(path), project, domain)
 
 
-def render_caddyfile(template: str, domain: str, color: str, token: str) -> str:
-    replacements = {"{{SITE_ADDRESS}}": domain, "{{UPSTREAM}}": "app-" + color + ":8080", "{{ROUTE_TOKEN}}": token}
+def render_caddyfile(template: str, domain: str, color: str, token: str, drain_seconds: int = 300) -> str:
+    replacements = {"{{SITE_ADDRESS}}": domain, "{{UPSTREAM}}": "app-" + color + ":8080",
+                    "{{ROUTE_TOKEN}}": token, "{{DRAIN_SECONDS}}": str(drain_seconds)}
     for marker in replacements:
         if template.count(marker) != 1:
             raise StateError("Caddy template must contain {} exactly once".format(marker))

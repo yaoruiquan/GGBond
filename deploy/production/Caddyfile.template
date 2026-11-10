@@ -23,6 +23,7 @@
 	}
 	# Exactly one upstream. Candidate is never included before smoke succeeds.
 	reverse_proxy {{UPSTREAM}} {
+		stream_close_delay {{DRAIN_SECONDS}}s
 		health_uri /health
 		health_interval 30s
 		health_timeout 10s

@@ -4,6 +4,7 @@ import argparse
 import json
 import logging
 import os
+import re
 from pathlib import Path
 import signal
 import sys
@@ -29,6 +30,8 @@ def arguments() -> Any:
     parser.add_argument("--timeout", type=int, default=180)
     parser.add_argument("--observe-seconds", type=float, default=10)
     parser.add_argument("--probe-interval", type=float, default=2)
+    parser.add_argument("--drain-seconds", type=int, default=300,
+                        help="retain old instance after cutover for bounded stream draining (default: 300)")
     subcommands = parser.add_subparsers(dest="operation", required=True)
     for operation in ("bootstrap", "deploy", "rollback", "status"):
         command = subcommands.add_parser(operation)
@@ -39,6 +42,7 @@ def arguments() -> Any:
             command.add_argument("--keep-old", action="store_true")
         if operation in ("bootstrap", "deploy"):
             command.add_argument("--image", required=True)
+            command.add_argument("--source-sha", help="require the pulled image's OCI revision to match this commit")
         if operation == "bootstrap":
             command.add_argument("--color", choices=COLORS, required=True)
             command.add_argument("--ack-bootstrap", action="store_true", required=True)
@@ -58,15 +62,19 @@ def validate_arguments(parser: Any, args: Any) -> None:
         parser.error("--state-dir must be an absolute, non-symlink path")
     if not 1 <= args.timeout <= 3600 or not 0 <= args.observe_seconds <= 3600 or not 0 < args.probe_interval <= 60:
         parser.error("timeout/observation/probe interval outside permitted range")
+    if not 0 <= args.drain_seconds <= 3600:
+        parser.error("--drain-seconds must be between 0 and 3600")
     if hasattr(args, "image") and not DIGEST_IMAGE.fullmatch(args.image):
         parser.error("--image must be an immutable repository@sha256:64-lowercase-hex digest (tags rejected)")
+    if getattr(args, "source_sha", None) and not re.fullmatch(r"[a-f0-9]{40}", args.source_sha):
+        parser.error("--source-sha must be a full lowercase Git commit SHA")
     if hasattr(args, "backup_ref") and not BACKUP_REF.fullmatch(args.backup_ref):
         parser.error("invalid --backup-ref (use a non-secret backup identifier)")
 
 
 def caddy_text(args: Any, state: Dict[str, Any]) -> str:
     return render_caddyfile((DIRECTORY / "Caddyfile.template").read_text(),
-                            args.domain, state["active"], state["route_token"])
+                            args.domain, state["active"], state["route_token"], args.drain_seconds)
 
 
 def next_state(args: Any, old: Optional[Dict[str, Any]]) -> Dict[str, Any]:
@@ -82,7 +90,10 @@ def next_state(args: Any, old: Optional[Dict[str, Any]]) -> Dict[str, Any]:
 
 def assert_stable(args: Any, old: Dict[str, Any], runtime: Runtime) -> None:
     live = args.state_dir / "caddy" / "Caddyfile"
-    if not live.is_file() or live.read_text() != caddy_text(args, old):
+    snapshot = args.state_dir / "transactions" / old["route_token"] / "target.Caddyfile"
+    expected = snapshot.read_text() if snapshot.is_file() else caddy_text(args, old).replace(
+        "\t\tstream_close_delay {}s\n".format(args.drain_seconds), "")
+    if not live.is_file() or live.read_text() != expected:
         raise StateError("disk Caddyfile differs from recorded active state; refusing deployment")
     runtime.assert_image(old["active"])
     runtime.assert_runtime()
@@ -112,21 +123,33 @@ def execute_transaction(args: Any, old: Optional[Dict[str, Any]]) -> None:
     transaction = args.state_dir / "transactions" / target["route_token"]
     transaction.mkdir(parents=True, mode=0o700)
     write_json(transaction / "target-state.json", target)
+    atomic_write(transaction / "target.Caddyfile", caddy_text(args, target))
     if old:
-        atomic_write(transaction / "old.Caddyfile", caddy_text(args, old))
+        atomic_write(transaction / "old.Caddyfile", (args.state_dir / "caddy" / "Caddyfile").read_text())
         write_json(transaction / "old-state.json", old)
     pending = {"operation": args.operation, "transaction": transaction.name, "backup_ref": args.backup_ref,
                "phase": "preparing", "at": now()}
     write_json(args.state_dir / "pending.json", pending)
     switched = False
     committed = False
+    candidate_attempted = False
     try:
         candidate = args.state_dir / "caddy" / "candidate.Caddyfile"
         atomic_write(candidate, caddy_text(args, target))
+        services = ("postgres", "redis", "caddy", "app-" + target["active"]) if old is None else ("app-" + target["active"],)
+        if old is not None:
+            runtime.assert_shared_storage(old["active"])
+        runtime.prepare_images(*services)
+        if getattr(args, "source_sha", None):
+            runtime.assert_revision(args.image, args.source_sha)
+        if old is not None:
+            runtime.backup_database(transaction / "database.dump")
         if old is None:
             runtime.start("postgres", "redis")
+        candidate_attempted = True
         runtime.start("app-" + target["active"])
         runtime.assert_image(target["active"])
+        runtime.assert_shared_storage(target["active"])
         runtime.direct_smoke(target["active"])
         runtime.validate("candidate.Caddyfile", bootstrap=old is None)
         write_json(args.state_dir / "pending.json", {**pending, "phase": "switching"})
@@ -138,6 +161,13 @@ def execute_transaction(args: Any, old: Optional[Dict[str, Any]]) -> None:
         else:
             runtime.reload()
         runtime.observe(target["route_token"])
+        if old is not None:
+            # Caddy's *unloaded* configuration owns the existing connections.
+            previous_delay = re.search(r"^\s*stream_close_delay (\d+)s\s*$",
+                                       (transaction / "old.Caddyfile").read_text(), re.MULTILINE)
+            drain_seconds = max(args.drain_seconds, int(previous_delay.group(1)) if previous_delay else 0)
+            LOG.info("new route healthy; retaining old color for %ss to drain existing streams", drain_seconds)
+            runtime.drain(target["route_token"], drain_seconds)
         write_json(args.state_dir / "state.json", target)
         committed = True
         record_result(args, transaction, "committed")
@@ -146,7 +176,7 @@ def execute_transaction(args: Any, old: Optional[Dict[str, Any]]) -> None:
         if committed:
             # Never restore after a known state commit: keep pending evidence for reconciliation.
             raise StateError("deployment committed but final journal update failed; manual reconciliation required") from error
-        handle_failure(args, old, runtime, transaction, switched, error)
+        handle_failure(args, old, runtime, transaction, switched, candidate_attempted, error)
         raise
     cleanup_old(args, old, runtime, transaction)
     LOG.info("committed active=%s image=%s; %s", target["active"], target["images"][target["active"]],
@@ -154,7 +184,7 @@ def execute_transaction(args: Any, old: Optional[Dict[str, Any]]) -> None:
 
 
 def handle_failure(args: Any, old: Optional[Dict[str, Any]], runtime: Runtime,
-                   transaction: Path, switched: bool, error: BaseException) -> None:
+                   transaction: Path, switched: bool, candidate_attempted: bool, error: BaseException) -> None:
     if switched and old is not None:
         try:
             recover(args, old, runtime, transaction)
@@ -164,9 +194,15 @@ def handle_failure(args: Any, old: Optional[Dict[str, Any]], runtime: Runtime,
     elif old is None:
         record_result(args, transaction, "BOOTSTRAP_INCOMPLETE", str(error))
         raise StateError("bootstrap incomplete; pending.json retained; inspect before manual recovery (no active state assumed)") from error
+    if candidate_attempted:
+        try:
+            runtime.compose("stop", "app-" + other(old["active"]), timeout=120)
+        except BaseException as cleanup_error:
+            record_result(args, transaction, "CANDIDATE_CLEANUP_REQUIRED", str(cleanup_error))
+            raise StateError("old route retained/restored but candidate stop failed; pending.json retained") from error
     record_result(args, transaction, "rolled_back" if switched else "preflight_failed", str(error))
     (args.state_dir / "pending.json").unlink()
-    # Preserve the candidate and logs for investigation. No DB or cache restore is attempted.
+    # Stopped candidate and logs remain available. No DB or cache restore is attempted.
 
 
 def cleanup_old(args: Any, old: Optional[Dict[str, Any]], runtime: Runtime, transaction: Path) -> None:

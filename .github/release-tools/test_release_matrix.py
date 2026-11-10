@@ -144,14 +144,28 @@ class ReleaseMatrixTest(unittest.TestCase):
         fake_bin = Path('bin')
         fake_bin.mkdir()
         docker = fake_bin / 'docker'
-        docker.write_text('#!/bin/sh\nprintf "%s\\n" "$*" >> "$DOCKER_LOG"\n')
+        docker.write_text('''#!/usr/bin/env python3
+import json
+import os
+import sys
+from pathlib import Path
+
+args = sys.argv[1:]
+with open(os.environ['DOCKER_LOG'], 'a') as log:
+    log.write(' '.join(args) + '\\n')
+metadata = args[args.index('--metadata-file') + 1]
+Path(metadata).write_text(json.dumps({'containerimage.digest': 'sha256:' + 'a' * 64}))
+''')
         docker.chmod(0o755)
         env = {**os.environ, 'PATH': str(fake_bin.resolve()) + os.pathsep + os.environ['PATH'],
                'DOCKER_LOG': str(Path('docker.log').resolve()), 'RUNNER_TEMP': self.temp.name,
+               'GITHUB_OUTPUT': str(Path('github-output').resolve()),
                'RELEASE_VERSION': '9.8.7', 'RELEASE_SHA': 'a' * 40, 'GITHUB_REPOSITORY': 'YaoRuiQuan/GGBond',
                'DRY_RUN': 'true', 'SIMPLE_RELEASE': 'false', 'DOCKERHUB_USERNAME': 'skip'}
         subprocess.run(['bash', str(ROOT / '.github/release-tools/release-images.sh')], env=env, check=True)
         log = Path('docker.log').read_text()
+        output = dict(line.split('=', 1) for line in Path('github-output').read_text().splitlines())
+        image = json.loads(Path(self.temp.name, 'release-image.json').read_text())
         self.assertEqual(log.count('buildx build'), 2)
         self.assertIn('linux/arm64', log)
         self.assertNotIn('--push', log)
@@ -160,25 +174,55 @@ class ReleaseMatrixTest(unittest.TestCase):
         self.assertIn('ghcr.io/yaoruiquan/ggbond', log)
         self.assertIn('org.opencontainers.image.source=https://github.com/YaoRuiQuan/GGBond', log)
         self.assertNotIn('/sub2api:', log)
+        self.assertNotIn(':latest', log)
+        self.assertEqual(output['ghcr_repository'], 'ghcr.io/yaoruiquan/ggbond')
+        self.assertEqual(output['ghcr_digest'], '')
+        self.assertEqual(output['ghcr_image_ref'], '')
+        self.assertEqual(output['image_published'], 'false')
+        self.assertFalse(image['image_published'])
+        self.assertEqual(set(image['build_digests']), {'amd64', 'arm64'})
 
 
     def test_published_full_and_simple_image_tags(self):
         fake_bin = Path('bin')
         fake_bin.mkdir()
         docker = fake_bin / 'docker'
-        docker.write_text('#!/bin/sh\nprintf "%s\\n" "$*" >> "$DOCKER_LOG"\n')
+        docker.write_text('''#!/usr/bin/env python3
+import json
+import os
+import sys
+from pathlib import Path
+
+args = sys.argv[1:]
+with open(os.environ['DOCKER_LOG'], 'a') as log:
+    log.write(' '.join(args) + '\\n')
+if args[0:3] == ['buildx', 'imagetools', 'inspect']:
+    print('sha256:' + 'b' * 64)
+elif args[0:3] == ['buildx', 'imagetools', 'create']:
+    pass
+else:
+    metadata = args[args.index('--metadata-file') + 1]
+    Path(metadata).write_text(json.dumps({'containerimage.digest': 'sha256:' + 'a' * 64}))
+''')
         docker.chmod(0o755)
         for simple in (False, True):
             with self.subTest(simple=simple):
                 log_path = Path(f'docker-{simple}.log').resolve()
                 env = {**os.environ, 'PATH': str(fake_bin.resolve()) + os.pathsep + os.environ['PATH'],
                        'DOCKER_LOG': str(log_path), 'RUNNER_TEMP': self.temp.name,
+                       'GITHUB_OUTPUT': str(Path(f'github-output-{simple}').resolve()),
                        'RELEASE_VERSION': '9.8.7', 'RELEASE_SHA': 'a' * 40, 'GITHUB_REPOSITORY': 'YaoRuiQuan/GGBond',
                        'DRY_RUN': 'false', 'SIMPLE_RELEASE': str(simple).lower(), 'DOCKERHUB_USERNAME': 'fixturehub'}
                 subprocess.run(['bash', str(ROOT / '.github/release-tools/release-images.sh')], env=env, check=True)
                 log = log_path.read_text()
+                output = dict(line.split('=', 1) for line in Path(f'github-output-{simple}').read_text().splitlines())
                 self.assertIn('--push', log)
                 self.assertEqual(log.count('buildx build'), 1 if simple else 2)
+                expected_digest = 'sha256:' + ('a' if simple else 'b') * 64
+                self.assertEqual(output['ghcr_repository'], 'ghcr.io/yaoruiquan/ggbond')
+                self.assertEqual(output['ghcr_digest'], expected_digest)
+                self.assertEqual(output['ghcr_image_ref'], f'ghcr.io/yaoruiquan/ggbond@{expected_digest}')
+                self.assertEqual(output['image_published'], 'true')
                 if simple:
                     self.assertNotIn('fixturehub', log)
                     self.assertNotIn('imagetools', log)

@@ -213,7 +213,7 @@ func validOpenAIVideoTaskID(id string) bool {
 		return false
 	}
 	for _, ch := range id {
-		if !(ch >= 'a' && ch <= 'z' || ch >= 'A' && ch <= 'Z' || ch >= '0' && ch <= '9' || ch == '-' || ch == '_' || ch == '.') {
+		if (ch < 'a' || ch > 'z') && (ch < 'A' || ch > 'Z') && (ch < '0' || ch > '9') && ch != '-' && ch != '_' && ch != '.' {
 			return false
 		}
 	}

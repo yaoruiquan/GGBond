@@ -54,6 +54,53 @@ class Runtime:
                      "--wait-timeout", str(int(self.args.timeout)), *services,
                      timeout=self.args.timeout + 30)
 
+    def prepare_images(self, *services: str) -> None:
+        # Resolve/download before starting migrations or changing the live route.
+        # App image references are validated immutable digests by the CLI.
+        self.compose("pull", *services, timeout=self.args.timeout)
+
+    def assert_revision(self, image: str, sha: str) -> None:
+        revision = self.command(["docker", "image", "inspect", "--format",
+                                 '{{index .Config.Labels "org.opencontainers.image.revision"}}', image]).strip()
+        if revision != sha:
+            raise RuntimeErrorDetail("image OCI revision differs from the CI-verified source SHA")
+
+    def assert_shared_storage(self, color: str) -> None:
+        identifier = self.compose("ps", "-q", "app-" + color).strip()
+        try:
+            mounts = json.loads(self.command(["docker", "inspect", "--format", "{{json .Mounts}}", identifier]))
+        except ValueError as error:
+            raise RuntimeErrorDetail("cannot verify active container storage") from error
+        if not isinstance(mounts, list) or not all(isinstance(mount, dict) for mount in mounts):
+            raise RuntimeErrorDetail("container mount metadata is invalid")
+        for name in ("plugins", "pricing"):
+            if not any(m.get("Type") == "volume" and m.get("Name") == self.args.project + "_" + name + "_data"
+                       and m.get("Destination") == "/app/data/" + name for m in mounts):
+                raise RuntimeErrorDetail("active container lacks shared " + name +
+                                         " storage; migrate existing data before deployment (see production README)")
+
+    def backup_database(self, path: Path) -> None:
+        """Keep and validate a private pre-migration PostgreSQL custom-format archive."""
+        backup = self.prefix + ["exec", "-T", "postgres", "sh", "-c",
+                               'exec pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Fc']
+        verify = self.prefix + ["exec", "-T", "postgres", "pg_restore", "--list"]
+        try:
+            with path.open("xb") as output:
+                path.chmod(0o600)
+                result = subprocess.run(backup, env=self.environment, stdout=output,
+                                        stderr=subprocess.PIPE, timeout=self.args.timeout, check=False)
+                output.flush()
+                os.fsync(output.fileno())
+            if result.returncode != 0 or path.stat().st_size == 0:
+                raise RuntimeErrorDetail("pre-migration database backup failed; no candidate started")
+            with path.open("rb") as source:
+                result = subprocess.run(verify, env=self.environment, stdin=source, stdout=subprocess.DEVNULL,
+                                        stderr=subprocess.PIPE, timeout=self.args.timeout, check=False)
+            if result.returncode != 0:
+                raise RuntimeErrorDetail("pre-migration backup archive validation failed; no candidate started")
+        except (OSError, subprocess.TimeoutExpired) as error:
+            raise RuntimeErrorDetail("database backup or archive validation failed") from error
+
     def assert_image(self, color: str) -> None:
         service = "app-" + color
         identifiers = self.compose("ps", "-q", service).strip().splitlines()
@@ -131,7 +178,13 @@ class Runtime:
                 time.sleep(min(self.args.probe_interval, remaining))
 
     def observe(self, token: str) -> None:
-        deadline = time.monotonic() + self.args.observe_seconds
+        self.monitor(token, self.args.observe_seconds)
+
+    def drain(self, token: str, seconds: int) -> None:
+        self.monitor(token, seconds)
+
+    def monitor(self, token: str, seconds: float) -> None:
+        deadline = time.monotonic() + seconds
         while True:
             self.assert_runtime()
             self.public_smoke(token)

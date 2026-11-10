@@ -17,7 +17,6 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"github.com/gin-gonic/gin"
-	"github.com/redis/go-redis/v9"
 	"github.com/tidwall/gjson"
 )
 
@@ -128,7 +127,7 @@ func (s *OpenAIGatewayService) GetOpenAIVideoTaskAccount(ctx context.Context, ap
 		return nil, errors.New("video task storage is unavailable")
 	}
 	accountID, err := s.cache.GetSessionAccountID(ctx, *apiKey.GroupID, openAIVideoTaskCacheKey(apiKey.ID, taskID))
-	if errors.Is(err, redis.Nil) {
+	if errors.Is(err, ErrStickySessionNotFound) {
 		return nil, ErrOpenAIVideoTaskNotFound
 	}
 	if err != nil {
@@ -185,7 +184,7 @@ func (s *OpenAIGatewayService) CheckOpenAIVideoPricing(ctx context.Context, apiK
 			return nil
 		}
 	}
-	return errors.New("Video pricing is not configured; configure the group's video price or channel model pricing")
+	return errors.New("video pricing is not configured; configure the group's video price or channel model pricing")
 }
 
 func (s *OpenAIGatewayService) ForwardOpenAIVideo(ctx context.Context, c *gin.Context, account *Account, apiKey *APIKey, request *OpenAIVideoRequest, taskID string, content bool, mappedModel string) (*OpenAIForwardResult, error) {
@@ -272,7 +271,7 @@ func (s *OpenAIGatewayService) ForwardOpenAIVideo(ctx context.Context, c *gin.Co
 	if err != nil {
 		return nil, fmt.Errorf("video upstream request failed: %s", sanitizeUpstreamErrorMessage(err.Error()))
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode >= http.StatusBadRequest {
 		responseBody := s.readUpstreamErrorBody(resp)
 		s.handleOpenAIAccountUpstreamError(ctx, account, resp.StatusCode, resp.Header, responseBody, billingModel)

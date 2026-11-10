@@ -12,7 +12,6 @@ import (
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/gin-gonic/gin"
-	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
 )
@@ -25,7 +24,7 @@ type openAIVideoTestCache struct {
 func (c *openAIVideoTestCache) GetSessionAccountID(_ context.Context, groupID int64, key string) (int64, error) {
 	id, ok := c.bindings[strconv.FormatInt(groupID, 10)+":"+key]
 	if !ok {
-		return 0, redis.Nil
+		return 0, ErrStickySessionNotFound
 	}
 	return id, nil
 }

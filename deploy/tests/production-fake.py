@@ -54,11 +54,19 @@ if kind == "curl":
     sys.exit(0)
 if kind != "docker" or not args:
     fail("unknown executable")
+if args[:2] == ["image", "inspect"]:
+    print("b" * 40 if mode == "revision" else "a" * 40)
+    sys.exit(0)
 if args[0] == "inspect":
     service = args[-1]
     if service not in model["containers"]:
         fail("no container")
-    print(model["containers"][service])
+    if "{{json .Mounts}}" in args:
+        print(json.dumps([] if mode == "legacy-storage" else [
+            {"Type": "volume", "Name": "ggbond-production_" + name + "_data",
+             "Destination": "/app/data/" + name} for name in ("plugins", "pricing")]))
+    else:
+        print(model["containers"][service])
     sys.exit(0)
 if args[0] != "compose":
     fail("unknown docker command")
@@ -68,7 +76,10 @@ while i < len(args) and args[i].startswith("-"):
         fail("unknown compose flag")
     i += 2
 op, rest = args[i], args[i + 1:]
-if op == "ps":
+if op == "pull":
+    if mode == "pull":
+        fail("registry unavailable")
+elif op == "ps":
     if rest[-1] in model["containers"]:
         print(rest[-1])
 elif op == "up":
@@ -80,13 +91,21 @@ elif op == "up":
             model["runtime"] = adapted(root / "state" / "caddy" / "Caddyfile")
     save()
 elif op == "stop":
-    if mode == "stop":
+    if mode in ("stop", "validate-stop"):
         fail()
     model["containers"].pop(rest[-1], None)
     save()
 elif op in ("exec", "run"):
-    if "validate" in rest:
-        if mode == "validate":
+    if "pg_dump" in " ".join(rest):
+        if mode == "backup":
+            fail("backup failed")
+        print("fake custom archive")
+    elif "pg_restore" in rest:
+        if mode == "backup-verify":
+            fail("invalid archive")
+        print("fake archive listing")
+    elif "validate" in rest:
+        if mode in ("validate", "validate-stop"):
             fail()
     elif "adapt" in rest:
         print(json.dumps(adapted(root / "state" / "caddy" / rest[rest.index("--config") + 1].rsplit("/", 1)[-1])))

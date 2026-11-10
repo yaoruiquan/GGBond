@@ -27,7 +27,7 @@ class DeploymentTests(unittest.TestCase):
         (self.root / "runtime.env").write_text("NOT_SHELL=$(touch SHOULD_NOT_EXIST)\n")
         self.env = {**os.environ, "PATH": str(self.root / "bin") + os.pathsep + os.environ["PATH"], "FAKE_ROOT": str(self.root)}
         self.env.pop("KEEP_OLD", None)
-        self.common = ["--env-file", str(self.root / "runtime.env"), "--domain", "api.example.com", "--state-dir", str(self.root / "state"), "--timeout", "1", "--observe-seconds", "0", "--probe-interval", "0.01"]
+        self.common = ["--env-file", str(self.root / "runtime.env"), "--domain", "api.example.com", "--state-dir", str(self.root / "state"), "--timeout", "1", "--observe-seconds", "0", "--probe-interval", "0.01", "--drain-seconds", "0"]
         self.gates = ["--ack-schema-compatible", "--backup-ref", "offline-test-backup", "--ack-dual-instance"]
 
     def tearDown(self):
@@ -116,12 +116,22 @@ class DeploymentTests(unittest.TestCase):
                 self.run_cli("deploy", "--image", B, mode=mode, success=False)
                 self.assertEqual(self.model()["runtime"], old)
                 self.assertEqual(self.state()["active"], "blue")
+                self.assertNotIn("app-green", self.model()["containers"])
+
+    def test_failed_candidate_stop_retains_pending(self):
+        self.bootstrap()
+        self.run_cli("deploy", "--image", B, mode="validate-stop", success=False)
+        self.assertEqual(self.state()["active"], "blue")
+        self.assertTrue((self.root / "state" / "pending.json").exists())
+        self.assertIn("app-green", self.model()["containers"])
+        self.run_cli("deploy", "--image", C, success=False)
 
     def test_reload_error_after_applying_is_reverted(self):
         self.bootstrap()
         self.run_cli("deploy", "--image", B, mode="reload-once", success=False)
         self.assertEqual(self.state()["active"], "blue")
         self.assertTrue(self.model()["runtime"]["marker"].startswith("blue-"))
+        self.assertNotIn("app-green", self.model()["containers"])
         self.assertFalse((self.root / "state" / "pending.json").exists())
 
     def test_public_verification_failure_restores_old_and_fences_if_unverifiable(self):
@@ -173,19 +183,94 @@ class DeploymentTests(unittest.TestCase):
         self.run_cli("rollback", success=False)
         self.assertEqual(self.state()["active"], "blue")
 
-    def test_no_pull_unscoped_up_or_early_reload(self):
+    def test_prepare_images_before_start_and_never_pull_during_cutover(self):
         self.bootstrap()
         self.run_cli("deploy", "--image", B)
         for call in self.calls():
-            self.assertNotIn("pull", call)
             self.assertNotIn("down", call)
             if "up" in call:
                 self.assertIn("--pull", call)
                 self.assertIn("never", call)
                 self.assertIn("--no-deps", call)
         calls = self.calls()
+        first_start = next(i for i, call in enumerate(calls) if "up" in call)
+        self.assertTrue(any("pull" in call and "app-blue" in call and "caddy" in call
+                            and "postgres" in call and "redis" in call for call in calls[:first_start]))
         first_reload = next(i for i, call in enumerate(calls) if "reload" in call)
         self.assertTrue(any("app-green" in call and "http://localhost:8080/api/v1/settings/public" in call for call in calls[:first_reload]))
+
+    def test_pull_failure_keeps_old_route_and_does_not_start_candidate(self):
+        self.bootstrap()
+        previous_calls = len(self.calls())
+        self.run_cli("deploy", "--image", B, mode="pull", success=False)
+        self.assertEqual(self.state()["active"], "blue")
+        self.assertFalse(any("up" in call or "reload" in call for call in self.calls()[previous_calls:]))
+        self.assertNotIn("app-green", self.model()["containers"])
+
+    def test_storage_and_backup_failure_refuse_candidate_start(self):
+        self.bootstrap()
+        for mode in ("legacy-storage", "backup", "backup-verify"):
+            previous_calls = len(self.calls())
+            self.run_cli("deploy", "--image", B, mode=mode, success=False)
+            self.assertEqual(self.state()["active"], "blue")
+            self.assertFalse(any("up" in call or "reload" in call for call in self.calls()[previous_calls:]))
+            self.assertFalse((self.root / "state" / "pending.json").exists())
+
+    def test_image_revision_must_match_approved_source_before_migrations(self):
+        self.bootstrap()
+        start = len(self.calls())
+        self.run_cli("deploy", "--image", B, "--source-sha", "a" * 40, mode="revision", success=False)
+        self.assertFalse(any("up" in call for call in self.calls()[start:]))
+        self.run_cli("deploy", "--image", B, "--source-sha", "a" * 40)
+
+    def test_database_archive_verified_before_candidate_migrations(self):
+        self.bootstrap()
+        start = len(self.calls())
+        self.run_cli("deploy", "--image", B)
+        calls = self.calls()[start:]
+        dump = next(i for i, call in enumerate(calls) if any("pg_dump" in arg for arg in call))
+        verify = next(i for i, call in enumerate(calls) if "pg_restore" in call)
+        up = next(i for i, call in enumerate(calls) if "up" in call)
+        self.assertLess(dump, verify)
+        self.assertLess(verify, up)
+        archive = self.root / "state" / "transactions" / self.state()["route_token"] / "database.dump"
+        self.assertGreater(archive.stat().st_size, 0)
+        self.assertEqual(archive.stat().st_mode & 0o777, 0o600)
+
+    def test_old_config_snapshot_allows_new_drain_budget_and_exact_recovery(self):
+        self.bootstrap()
+        live = self.root / "state" / "caddy" / "Caddyfile"
+        original = live.read_text()
+        self.common[-1] = "1"
+        self.run_cli("deploy", "--image", B, mode="reload-once", success=False)
+        self.assertEqual(live.read_text(), original)
+        self.common[-1] = "0"
+        self.run_cli("deploy", "--image", B)
+        self.assertEqual(self.state()["active"], "green")
+
+    def test_reducing_delay_still_waits_for_unloaded_config(self):
+        self.common[-1] = "1"
+        self.bootstrap()
+        self.common[-1] = "0"
+        result = self.run_cli("deploy", "--image", B)
+        self.assertIn("retaining old color for 1s", result.stderr)
+
+    def test_legacy_config_can_upgrade_without_allowing_unrelated_drift(self):
+        self.bootstrap()
+        transaction = self.root / "state" / "transactions" / self.state()["route_token"]
+        (transaction / "target.Caddyfile").unlink()
+        live = self.root / "state" / "caddy" / "Caddyfile"
+        live.write_text(live.read_text().replace("\t\tstream_close_delay 0s\n", ""))
+        self.run_cli("deploy", "--image", B)
+        self.assertIn("stream_close_delay 0s", live.read_text())
+
+    def test_shared_plugin_and_pricing_storage_with_private_runtime(self):
+        compose = (DEPLOY / "production" / "docker-compose.yml").read_text()
+        self.assertEqual(compose.count("plugins_data:/app/data/plugins"), 2)
+        self.assertEqual(compose.count("pricing_data:/app/data/pricing"), 2)
+        self.assertIn("/app/data/plugins/runtime", compose)
+        self.assertIn("PLUGINS_DATA_DIR: /app/data/plugins", compose)
+        self.assertIn("PRICING_DATA_DIR: /app/data/pricing", compose)
 
 
     def test_compose_sets_valid_database_pool_limits(self):

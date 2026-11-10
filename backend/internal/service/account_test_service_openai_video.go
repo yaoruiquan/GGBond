@@ -38,7 +38,7 @@ func (s *AccountTestService) GetOpenAIVideoTestTask(ctx context.Context, account
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	body, err := io.ReadAll(io.LimitReader(resp.Body, (1<<20)+1))
 	if err != nil || len(body) > 1<<20 {
 		return nil, infraerrors.New(502, "video_status_invalid", "Failed to read video task status")
@@ -122,7 +122,7 @@ func (s *AccountTestService) doOpenAIVideoTestRequest(ctx context.Context, accou
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		defer cancel()
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
 		message := strings.ReplaceAll(sanitizeUpstreamErrorMessage(string(body)), authToken, "[REDACTED]")
 		status := resp.StatusCode
@@ -272,7 +272,7 @@ func (s *AccountTestService) testOpenAIVideoAccountConnection(c *gin.Context, ac
 	if err != nil {
 		return s.sendErrorAndEnd(c, "Video API (/v1/videos) request failed; the task may already have been accepted, check the upstream before retrying: "+strings.ReplaceAll(sanitizeUpstreamErrorMessage(err.Error()), authToken, "[REDACTED]"))
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	const maxResponseSize = 1 << 20
 	body, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseSize+1))
 	if err != nil || len(body) > maxResponseSize {
