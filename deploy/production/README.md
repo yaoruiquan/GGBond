@@ -1,8 +1,20 @@
 # 单机蓝绿部署
 
-**日期：2026-11-10；状态：部署事务、SSH 传输及真实 Caddy 隔离测试通过，真实目标部署尚未完成。**
+**日期：2026-11-10；状态：CI、安全检查、镜像发布及真实生产 SSH 蓝绿部署全部通过。**
 
 本目录用于单机 Docker Compose + Caddy 的蓝绿发布。蓝、绿共用 PostgreSQL、Redis、插件文件和定价目录；每个实例的配置目录和插件 runtime socket 保持隔离。单机蓝绿不提供主机高可用，应用回滚不会恢复数据库，也不保证无限时长的流式请求不中断。
+
+## 已验证的生产发布（2026-11-10）
+
+- 目标域名：`ggbond.wiki`；Compose 项目：`ggbond-production`；部署根目录：`/opt/ggbond-production`。
+- 发布：`v2026.11.10-1`；应用源码：`594c8b34f6f25e6e66c3fefbceb5d193978ca8f6`；GitHub Actions run：`42775387985`，所有任务成功。
+- 生产镜像：`ghcr.io/yaoruiquan/ggbond@sha256:5c11acb7854a928bfb88014cb3b088afee2639d4a657ceef5ee5898df55f18de`，OCI revision 与源码 SHA 一致。
+- 最终活动色为 `green`，状态 generation 为 `4`。切流后完成 300 秒排空，旧 `blue` 正常退出，无 `pending.json`；旧镜像 digest、容器、配置及文件卷保留。
+- `/health`、`/api/v1/settings/public`、首页和首页引用的 6 个 JS/CSS 资源均返回 200；公开设置已包含 `contact_methods` 与 `home_contact_enabled`。持续外部探测覆盖本次新版切流及排空，未发现失败。尚未对真实用户的无限时长生成请求作不中断保证。
+
+本次先核对原环境：无已安装插件、无定时测试计划，插件目录只有空 runtime 子目录。已备份 PostgreSQL 和两色应用文件，以原镜像完成共享卷迁移后才发布新版本；原 Caddy bind 源路径通过兼容符号链接保留。定价文件复制前后 SHA256 一致，两色配置同步，实例 runtime socket 使用各自 tmpfs。迁移前备份位于 `/opt/ggbond-production/backups/storage-migration-20261110/`；新版发布前的私有数据库备份位于 `shared/state/transactions/green-c648286b3ccffe9ead3f36e4168d9114/database.dump`，已通过 `pg_restore --list` 校验，未执行完整恢复演练。
+
+GitHub `production` Environment 已配置专用 SSH 部署密钥、固定主机密钥及目标变量；原服务器 PEM 未上传 GitHub。后续发布仍需审核迁移兼容性并将 `PRODUCTION_SCHEMA_COMPATIBLE_SHA` 更新为对应提交；未更新时部署会失败。服务器实际环境文件保持在 `/etc/ggbond/production.env`，`shared/production.env` 为指向它的私有链接。
 
 ## 发布链路
 
