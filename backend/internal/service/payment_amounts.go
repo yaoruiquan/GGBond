@@ -28,7 +28,7 @@ func normalizeSubscriptionUSDToCNYRate(rate float64) float64 {
 func calculateCreditedBalance(paymentAmount, multiplier float64) float64 {
 	return decimal.NewFromFloat(paymentAmount).
 		Mul(decimal.NewFromFloat(normalizeBalanceRechargeMultiplier(multiplier))).
-		Round(2).
+		Round(8).
 		InexactFloat64()
 }
 
@@ -37,7 +37,7 @@ func calculateGatewayRefundAmount(orderAmount, payAmount, refundAmount float64, 
 		return 0
 	}
 	fractionDigits := int32(payment.CurrencyMaxFractionDigits(currency))
-	if math.Abs(refundAmount-orderAmount) <= paymentAmountToleranceForCurrency(currency) {
+	if math.Abs(refundAmount-orderAmount) < 0.000000005 {
 		return decimal.NewFromFloat(payAmount).Round(fractionDigits).InexactFloat64()
 	}
 	return decimal.NewFromFloat(payAmount).

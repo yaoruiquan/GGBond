@@ -237,15 +237,15 @@ func calculateRechargeBonus(baseCredited, bonusPercent float64) float64 {
 	return decimal.NewFromFloat(baseCredited).
 		Mul(decimal.NewFromFloat(bonusPercent)).
 		Div(decimal.NewFromInt(100)).
-		Round(2).
+		Round(8).
 		InexactFloat64()
 }
 
-// addRechargeBonus 到账总额 = 基数 + 赠送，两位小数。
+// addRechargeBonus 到账总额 = 基数 + 赠送，八位美元小数。
 func addRechargeBonus(baseCredited, bonus float64) float64 {
 	return decimal.NewFromFloat(baseCredited).
 		Add(decimal.NewFromFloat(bonus)).
-		Round(2).
+		Round(8).
 		InexactFloat64()
 }
 
@@ -299,7 +299,7 @@ func quoteRechargeBonus(cfg *PaymentConfig, paymentAmount float64, currency stri
 			return quote
 		}
 		paidCredit := calculateCreditedBalance(payBase, multiplier)
-		bonus := decimal.NewFromFloat(base).Sub(decimal.NewFromFloat(paidCredit)).Round(2).InexactFloat64()
+		bonus := decimal.NewFromFloat(base).Sub(decimal.NewFromFloat(paidCredit)).Round(8).InexactFloat64()
 		if bonus < 0 {
 			bonus = 0
 		}
@@ -328,7 +328,7 @@ func paymentOrderAmountWithoutBonus(o *dbent.PaymentOrder) float64 {
 	}
 	base := decimal.NewFromFloat(o.Amount).
 		Sub(decimal.NewFromFloat(o.BonusAmount)).
-		Round(2).
+		Round(8).
 		InexactFloat64()
 	if base < 0 {
 		return 0

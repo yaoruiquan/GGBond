@@ -1293,3 +1293,52 @@ func TestExecuteSubscriptionFulfillmentDoesNotDuplicateWorkAfterLegacySuccessAud
 
 var _ AffiliateRepository = (*paymentFulfillmentAffiliateRepoStub)(nil)
 var _ SettingRepository = (*paymentFulfillmentSettingRepoStub)(nil)
+
+func TestExecuteBalanceFulfillmentPreservesEightDecimalCreditAndIsIdempotent(t *testing.T) {
+	ctx := context.Background()
+	client := newPaymentConfigServiceTestClient(t)
+	ensurePaymentAuditOrderActionUniqueIndex(t, ctx, client)
+	order := createPaymentFulfillmentSubscriptionOrder(t, ctx, client, OrderStatusPaid, time.Now())
+	order, err := client.PaymentOrder.UpdateOneID(order.ID).
+		SetOrderType(payment.OrderTypeBalance).
+		SetAmount(0.15972222).
+		SetBonusAmount(0.02083333).
+		SetPayAmount(1).
+		ClearPlanID().
+		ClearSubscriptionGroupID().
+		ClearSubscriptionDays().
+		Save(ctx)
+	require.NoError(t, err)
+
+	redeemRepo := &paymentFulfillmentRedeemRepo{}
+	credited := 0.0
+	userRepo := &mockUserRepo{getByIDUser: &User{ID: order.UserID, Balance: 0}}
+	userRepo.updateBalanceFn = func(_ context.Context, id int64, amount float64) error {
+		require.Equal(t, order.UserID, id)
+		credited += amount
+		return nil
+	}
+	cache := &paymentFulfillmentRedeemCacheStub{count: redeemMaxFailedAttempts}
+	redeemService := NewRedeemService(redeemRepo, userRepo, nil, cache, nil, client, nil, nil)
+	svc := &PaymentService{entClient: client, redeemService: redeemService, userRepo: userRepo}
+
+	require.NoError(t, svc.ExecuteBalanceFulfillment(ctx, order.ID))
+	require.Equal(t, 0.15972222, credited)
+	require.NoError(t, svc.ExecuteBalanceFulfillment(ctx, order.ID))
+	require.Equal(t, 0.15972222, credited, "duplicate fulfillment cannot credit again")
+	require.Zero(t, cache.getCalls, "trusted payment fulfillment must not read the public failure counter")
+	require.Zero(t, cache.incrementCalls, "trusted payment fulfillment must not mutate the public failure counter")
+	require.Equal(t, 1, cache.acquireCalls)
+	require.Equal(t, 1, cache.releaseCalls)
+	require.Equal(t, 1, redeemRepo.createCalls)
+	require.Len(t, redeemRepo.useCalls, 1)
+
+	usedCode := redeemRepo.codesByCode[order.RechargeCode]
+	require.Equal(t, 0.15972222, usedCode.Value)
+	require.Equal(t, StatusUsed, usedCode.Status)
+	require.NotNil(t, usedCode.UsedBy)
+	require.Equal(t, order.UserID, *usedCode.UsedBy)
+	reloaded, err := client.PaymentOrder.Get(ctx, order.ID)
+	require.NoError(t, err)
+	require.Equal(t, OrderStatusCompleted, reloaded.Status)
+}

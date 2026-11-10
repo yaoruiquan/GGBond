@@ -675,6 +675,8 @@ export interface SystemSettings {
   payment_max_pending_orders: number;
   payment_enabled_types: string[];
   payment_balance_disabled: boolean;
+  billing_default_display_currency?: 'CNY' | 'USD';
+  billing_usd_to_cny_rate?: number;
   payment_balance_recharge_multiplier: number;
   payment_subscription_usd_to_cny_rate: number;
   payment_recharge_fee_rate: number;
@@ -1001,6 +1003,8 @@ export interface UpdateSettingsRequest {
   payment_max_pending_orders?: number;
   payment_enabled_types?: string[];
   payment_balance_disabled?: boolean;
+  billing_default_display_currency?: 'CNY' | 'USD';
+  billing_usd_to_cny_rate?: number;
   payment_balance_recharge_multiplier?: number;
   payment_subscription_usd_to_cny_rate?: number;
   payment_recharge_fee_rate?: number;
@@ -1083,6 +1087,22 @@ export interface UpdateSettingsRequest {
  */
 export async function getSettings(): Promise<SystemSettings> {
   const { data } = await apiClient.get<SystemSettings>("/admin/settings");
+  return data;
+}
+
+export interface PaymentExchangeRate {
+  usd_to_cny: number;
+  balance_recharge_multiplier: number;
+  rate_date: string;
+  fetched_at: string;
+  source: string;
+  stale: boolean;
+}
+
+export async function getPaymentExchangeRate(): Promise<PaymentExchangeRate> {
+  const { data } = await apiClient.get<PaymentExchangeRate>(
+    "/admin/settings/payment-exchange-rate",
+  );
   return data;
 }
 
@@ -1593,6 +1613,7 @@ export async function resetWebSearchUsage(payload: {
 
 export const settingsAPI = {
   getSettings,
+  getPaymentExchangeRate,
   updateSettings,
   testSmtpConnection,
   sendTestEmail,

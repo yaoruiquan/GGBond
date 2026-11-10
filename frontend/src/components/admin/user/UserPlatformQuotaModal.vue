@@ -93,7 +93,7 @@
             </tr>
           </tbody>
         </table>
-        <p class="mt-3 text-xs text-gray-500">{{ t('admin.users.platformQuota.hint') }}</p>
+        <p class="mt-3 text-xs text-gray-500">USD · {{ t('admin.users.platformQuota.hint') }}</p>
         <div class="mt-3">
           <button type="button" class="btn btn-secondary text-sm" @click="onClearAll">
             {{ t('admin.users.platformQuota.clearAll') }}

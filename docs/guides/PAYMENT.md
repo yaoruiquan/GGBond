@@ -285,3 +285,18 @@ If you previously used [Sub2ApiPay](https://github.com/touwaeriol/sub2apipay) as
 4. Decommission the Sub2ApiPay service
 
 > **Note**: Historical order data from Sub2ApiPay will not be automatically migrated. Keep Sub2ApiPay running for a while to access historical records.
+
+
+## CNY / USD display and recommended recharge rates
+
+Wallet balances, usage and Key quotas remain canonical USD. `billing_usd_to_cny_rate` is **CNY per USD**, and `billing_default_display_currency` defaults to CNY. Without a valid saved rate, displays fall back to USD. The header switch remembers the browser preference. Historical usage uses the current saved site rate; existing balances are never rewritten. Quota, balance adjustment and alert threshold editors explicitly accept USD and can show a converted preview.
+
+The reference panel displays the quote date, fetch time and Frankfurter / ECB source. This is a published working-day reference, not a streaming trading quote. Fill the recharge multiplier, display rate or both, then use Save to apply the draft. The subscription payment rate remains independent. Successful quotes are cached for 30 minutes; outages may show a marked stale quote fetched within 24 hours, with apply actions disabled.
+
+The existing recharge multiplier is shared by all payment channels. This recommendation applies only to CNY payments. When an enabled channel uses USD/HKD or another currency, or channel currencies have not been verified, filling the multiplier or both fields is disabled. Filling the display rate remains available. Separate recharge multipliers per payment currency are not supported.
+
+Example only: with a display rate of 7.20 and multiplier 0.13888889, paying CNY 72 credits about USD 10, displayed as about CNY 72. Payment inputs, cash paid, fees and cash refunds retain their actual provider/order currency. USD credits, bonuses and refund allowances retain eight decimals; cash keeps payment-currency precision. Existing orders fulfill their stored amounts.
+
+Changing the recharge multiplier from 1 to the inverse exchange rate increases the CNY cost of the same usage by roughly the exchange rate if other prices remain unchanged. Review prices and promotions before applying it. The system does not automatically modify model pricing or old balances. Deployment requires `250_payment_usd_credit_precision.sql`, which expands precision without revaluing historical amounts.
+
+CSV cost columns are labeled USD. Default wallet notifications use the site display currency and retain the original USD amount. Custom templates keep existing variables and may use `current_balance_display`, `threshold_display` and `recharge_amount_display`. Refreshing the quote never changes effective settings automatically.

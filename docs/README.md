@@ -45,6 +45,7 @@
 - [迁移路线](plans/migration-roadmap.md)：已核查内容、配置与验收待办。
 - [迁移交接（2026-11-02）](plans/migration-handoff-2026-11-02.md)：后续阶段、发布来源、品牌、部署与交接检查。
 - [首页联系方式开发方案](plans/home-contact-methods.md)：文字与二维码配置、三种 Home 模式展示、接口改动及本地验证记录；已实现，待部署验收。
+- [人民币／美元展示与充值倍率推荐开发文档](plans/2026-11-10-currency-display-and-exchange-rate.md)：统一金额口径、汇率配置、切换交互、推荐接口与精度；已实现并通过本地验收，待数据库迁移与部署。
 - [管理员合规（中文）](legal/admin-compliance.zh.md) / [Admin Compliance（English）](legal/admin-compliance.en.md)：管理员合规提示正文。
 - [开发指南](../DEV_GUIDE.md)：根目录现有开发说明，开发环境与命令以当前配置核实。
 - [品牌迁移记录](../BRANDING_MIGRATION.md)：品牌迁移历史；后续计划以迁移路线和最新交接为准。

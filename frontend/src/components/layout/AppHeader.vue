@@ -52,6 +52,7 @@
 
         <!-- Language Switcher -->
         <LocaleSwitcher />
+        <CurrencySwitcher />
 
         <!-- Subscription Progress (for users with active subscriptions; not mounted at all when the feature is off) -->
         <SubscriptionProgressMini v-if="user && subscriptionFeatureEnabled" />
@@ -257,6 +258,8 @@ import { useRouter, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAppStore, useAuthStore, useOnboardingStore } from '@/stores'
 import { useAdminSettingsStore } from '@/stores/adminSettings'
+import CurrencySwitcher from '@/components/common/CurrencySwitcher.vue'
+import { useBillingCurrency } from '@/composables/useBillingCurrency'
 import LocaleSwitcher from '@/components/common/LocaleSwitcher.vue'
 import SubscriptionProgressMini from '@/components/common/SubscriptionProgressMini.vue'
 import AnnouncementBell from '@/components/common/AnnouncementBell.vue'
@@ -373,10 +376,7 @@ function handleReplayGuide() {
   onboardingStore.replay()
 }
 
-function formatHeaderMoney(value: number) {
-  if (!Number.isFinite(value)) return '$0.00'
-  return `$${value.toFixed(2)}`
-}
+const { formatMoney: formatHeaderMoney } = useBillingCurrency()
 
 function handleClickOutside(event: MouseEvent) {
   if (dropdownRef.value && !dropdownRef.value.contains(event.target as Node)) {

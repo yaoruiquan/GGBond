@@ -241,3 +241,16 @@ https://pay.example.com/pay?user_id=123&token=<jwt>&theme=light&lang=zh&ui_mode=
 ### 6) Recommended `doc_url`
 - View URL: `https://github.com/Wei-Shaw/sub2api/blob/main/docs/ADMIN_PAYMENT_INTEGRATION_API.md`
 - Download URL: `https://raw.githubusercontent.com/Wei-Shaw/sub2api/main/docs/ADMIN_PAYMENT_INTEGRATION_API.md`
+
+
+## 金额展示配置与参考汇率（2026-11-10）
+
+管理员设置 GET/PUT `/api/v1/admin/settings` 新增 `billing_default_display_currency`（CNY/USD，默认 CNY）、`billing_usd_to_cny_rate`（有限非负数，CNY/USD，0 未配置）。省略字段保留原配置。两项同步提供给公开设置和首屏注入；它们不改变任何计费、支付或旧余额。`payment_balance_recharge_multiplier` 保留至少八位小数；订阅支付配置保持独立。
+
+管理员鉴权 GET `/api/v1/admin/settings/payment-exchange-rate` 只读返回：
+
+```json
+{"code":0,"data":{"usd_to_cny":7.2,"balance_recharge_multiplier":0.13888889,"rate_date":"2026-11-09","fetched_at":"2026-11-10T08:00:00Z","source":"Frankfurter / ECB","stale":false}}
+```
+
+示例数值不是当前行情。推荐倍率 = round(1 / usd_to_cny, 8)。获取不写配置，管理员填入草稿并保存后才生效。无有效参考数据时 HTTP 503，reason `EXCHANGE_RATE_UNAVAILABLE`；来源固定、超时 8 秒、正常缓存 30 分钟，故障最多复用 24 小时并标记 stale，陈旧值禁止一键采纳。真实支付和现金退款遵循订单币种，USD 额度保留八位，现金字段保持原支付精度。

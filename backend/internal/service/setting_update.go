@@ -342,6 +342,11 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 	}
 
 	// OEM设置
+	if err := validateBillingDisplaySettings(settings); err != nil {
+		return nil, err
+	}
+	updates[SettingKeyBillingDefaultDisplayCurrency] = normalizeBillingDisplayCurrency(settings.BillingDefaultDisplayCurrency)
+	updates[SettingKeyBillingUSDToCNYRate] = strconv.FormatFloat(settings.BillingUSDToCNYRate, 'f', -1, 64)
 	updates[SettingKeySiteName] = settings.SiteName
 	updates[SettingKeySiteLogo] = settings.SiteLogo
 	updates[SettingKeySiteSubtitle] = settings.SiteSubtitle

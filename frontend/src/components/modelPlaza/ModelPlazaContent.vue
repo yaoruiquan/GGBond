@@ -1,5 +1,6 @@
 <template>
   <div class="space-y-5">
+    <div class="flex justify-end"><CurrencySwitcher /></div>
     <div v-if="!embedded">
       <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ t('modelPlaza.title') }}</h1>
       <p class="mt-1 text-sm text-gray-500 dark:text-dark-400">{{ t('modelPlaza.description') }}</p>
@@ -108,6 +109,9 @@
 </template>
 
 <script setup lang="ts">
+import CurrencySwitcher from '@/components/common/CurrencySwitcher.vue'
+import { useBillingCurrency } from '@/composables/useBillingCurrency'
+const { formatPrice } = useBillingCurrency()
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { marked } from 'marked'
@@ -178,6 +182,7 @@ function intervalLabel(interval: { tier_label?: string; min_tokens: number; max_
 }
 
 function priceLines(model: PlazaModel, mode: string, rate: number, official = false): string[] {
+  const priceFormat = official ? (value: number | null, scale: number, digits = 0) => `USD ${formatScaled(value, scale, digits)}` : formatPrice
   if (official && mode !== 'token') return ['-']
   if (mode === 'token') {
     const base = official ? model.official_pricing : model.pricing
@@ -189,10 +194,10 @@ function priceLines(model: PlazaModel, mode: string, rate: number, official = fa
     const factor = official ? 1 : rate
     return priceTiers.map((price, index) => {
       const label = intervals.length ? intervalLabel(intervals[index], priceTiers.length) : ''
-      const input = formatScaled(price.input_price == null ? null : price.input_price * factor, PER_MILLION, 2)
-      const output = formatScaled(price.output_price == null ? null : price.output_price * factor, PER_MILLION, 2)
+      const input = priceFormat(price.input_price == null ? null : price.input_price * factor, PER_MILLION, 2)
+      const output = priceFormat(price.output_price == null ? null : price.output_price * factor, PER_MILLION, 2)
       const cache = price.cache_write_price != null || price.cache_read_price != null
-        ? ` · ${t('modelPlaza.table.cacheWriteShort')} ${formatScaled(price.cache_write_price == null ? null : price.cache_write_price * factor, PER_MILLION, 2)} / ${t('modelPlaza.table.cacheReadShort')} ${formatScaled(price.cache_read_price == null ? null : price.cache_read_price * factor, PER_MILLION, 2)}`
+        ? ` · ${t('modelPlaza.table.cacheWriteShort')} ${priceFormat(price.cache_write_price == null ? null : price.cache_write_price * factor, PER_MILLION, 2)} / ${t('modelPlaza.table.cacheReadShort')} ${priceFormat(price.cache_read_price == null ? null : price.cache_read_price * factor, PER_MILLION, 2)}`
         : ''
       const tier = label || (priceTiers.length > 1 ? `#${index + 1}` : '')
       return `${tier ? `${tier} · ` : ''}${t('modelPlaza.table.input')} ${input} · ${t('modelPlaza.table.output')} ${output}${cache}`
@@ -210,7 +215,7 @@ function priceLines(model: PlazaModel, mode: string, rate: number, official = fa
       : mode === BILLING_MODE_VIDEO
         ? t('modelPlaza.table.perUnitVideo')
         : t('modelPlaza.table.perUnitRequest')
-    return `${label ? `${label} · ` : ''}${formatScaled(interval.per_request_price * rate, 1, 2)} ${unit}`
+    return `${label ? `${label} · ` : ''}${priceFormat(interval.per_request_price * rate, 1, 2)} ${unit}`
   })
 }
 

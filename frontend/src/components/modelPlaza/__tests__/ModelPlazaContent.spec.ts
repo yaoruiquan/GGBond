@@ -111,7 +111,7 @@ describe('ModelPlazaContent model market', () => {
     expect(wrapper.text()).toContain('claude-sonnet')
 
     await search.setValue('')
-    await wrapper.findAll('select')[1].setValue('1')
+    await wrapper.findAll('select')[2].setValue('1')
     expect(wrapper.findAll('tbody tr')).toHaveLength(1)
     expect(wrapper.text()).toContain('标准组')
   })

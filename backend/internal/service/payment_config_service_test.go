@@ -440,6 +440,25 @@ func (s *paymentConfigSettingRepoStub) GetAll(context.Context) (map[string]strin
 }
 func (s *paymentConfigSettingRepoStub) Delete(context.Context, string) error { return nil }
 
+func TestUpdatePaymentConfig_PreservesRechargeMultiplierPrecision(t *testing.T) {
+	repo := &paymentConfigSettingRepoStub{values: map[string]string{}}
+	svc := &PaymentConfigService{settingRepo: repo}
+	multiplier := 0.13888889
+	if err := svc.UpdatePaymentConfig(context.Background(), UpdatePaymentConfigRequest{BalanceRechargeMultiplier: &multiplier}); err != nil {
+		t.Fatal(err)
+	}
+	if got := repo.values[SettingBalanceRechargeMult]; got != "0.13888889" {
+		t.Fatalf("stored multiplier = %q, want 0.13888889", got)
+	}
+	cfg, err := svc.GetPaymentConfig(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.BalanceRechargeMultiplier != multiplier {
+		t.Fatalf("loaded multiplier = %v, want %v", cfg.BalanceRechargeMultiplier, multiplier)
+	}
+}
+
 func TestUpdatePaymentConfig_PersistsVisibleMethodRouting(t *testing.T) {
 	repo := &paymentConfigSettingRepoStub{values: map[string]string{
 		SettingPaymentVisibleMethodAlipayEnabled: "false",

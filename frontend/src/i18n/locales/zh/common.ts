@@ -1,5 +1,6 @@
 export default {
   common: {
+    billingCurrency: { label: '金额展示币种', cny: '人民币 CNY', usd: '美元 USD', hint: '按当前站点汇率折合：1 USD = {rate} CNY；历史用量同样采用当前汇率。支付实付币种保持不变。', unavailable: '人民币换算尚未配置，当前显示美元。', inputUSD: '输入单位：USD；折合 {amount}' },
     loading: '加载中...',
     submitting: '提交中...',
     justNow: '刚刚',

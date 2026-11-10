@@ -11,6 +11,7 @@
         </router-link>
         <div class="flex items-center gap-3">
           <LocaleSwitcher />
+          <CurrencySwitcher />
           <a
             v-if="docUrl"
             :href="docUrl"
@@ -417,11 +418,14 @@
 </template>
 
 <script setup lang="ts">
+import { useBillingCurrency } from '@/composables/useBillingCurrency'
+const { formatMoney } = useBillingCurrency()
 import { DEFAULT_SITE_NAME, DEFAULT_SITE_LOGO } from '@/constants/branding'
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores'
 import { FeatureFlags, resolveFeatureFlag } from '@/utils/featureFlags'
+import CurrencySwitcher from '@/components/common/CurrencySwitcher.vue'
 import LocaleSwitcher from '@/components/common/LocaleSwitcher.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { buildGatewayUrl } from '@/api/client'
@@ -556,13 +560,25 @@ function getRingOffset(ring: RingItem): number {
   return CIRCUMFERENCE - (Math.min(ring.pct, 100) / 100) * CIRCUMFERENCE
 }
 
+let ringAnimationFrame: number | null = null
+let ringAnimationTimer: ReturnType<typeof setTimeout> | null = null
+let ringAnimationDisposed = false
+function cancelRingAnimation() {
+  if (ringAnimationFrame != null) cancelAnimationFrame(ringAnimationFrame)
+  if (ringAnimationTimer != null) clearTimeout(ringAnimationTimer)
+  ringAnimationFrame = null
+  ringAnimationTimer = null
+}
+
 function triggerRingAnimation(items: RingItem[]) {
+  cancelRingAnimation()
   ringAnimated.value = false
   displayPcts.value = items.map(() => 0)
 
   nextTick(() => {
-    requestAnimationFrame(() => {
-      setTimeout(() => {
+    if (ringAnimationDisposed) return
+    ringAnimationFrame = requestAnimationFrame(() => {
+      ringAnimationTimer = setTimeout(() => {
         ringAnimated.value = true
 
         // Animate percentage numbers
@@ -575,9 +591,9 @@ function triggerRingAnimation(items: RingItem[]) {
           const p = Math.min(elapsed / duration, 1)
           const ease = 1 - Math.pow(1 - p, 3)
           displayPcts.value = targets.map(target => Math.round(ease * target))
-          if (p < 1) requestAnimationFrame(tick)
+          if (p < 1) ringAnimationFrame = requestAnimationFrame(tick)
         }
-        requestAnimationFrame(tick)
+        ringAnimationFrame = requestAnimationFrame(tick)
       }, 50)
     })
   })
@@ -836,7 +852,7 @@ const showDailyUsage = computed(() => Boolean(resultData.value && Array.isArray(
 
 function usd(value: number | null | undefined): string {
   if (value == null || value < 0) return '-'
-  return '$' + Number(value).toFixed(2)
+  return formatMoney(value)
 }
 
 function fmtNum(val: number | null | undefined): string {
@@ -940,6 +956,8 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  ringAnimationDisposed = true
+  cancelRingAnimation()
   if (resetTimer) clearInterval(resetTimer)
 })
 </script>

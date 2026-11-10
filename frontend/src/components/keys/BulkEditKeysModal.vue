@@ -69,7 +69,8 @@
               :aria-label="t(field.label)"
               :data-test="`${field.key}-input`"
             />
-            <p class="input-hint">{{ t('keys.bulkEdit.limitHint') }}</p>
+            <p class="input-hint">USD · {{ t('keys.bulkEdit.limitHint') }}
+              {{ t('common.billingCurrency.inputUSD', { amount: formatMoney(Number(limits[field.key])) }) }}</p>
           </div>
         </div>
 
@@ -149,6 +150,8 @@
 </template>
 
 <script setup lang="ts">
+import { useBillingCurrency } from '@/composables/useBillingCurrency'
+const { formatMoney } = useBillingCurrency()
 import { computed, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { keysAPI } from '@/api'

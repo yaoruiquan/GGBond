@@ -153,23 +153,25 @@ type UpdateSettingsRequest struct {
 	GoogleOAuthFrontendRedirectURL string `json:"google_oauth_frontend_redirect_url"`
 
 	// OEM设置
-	SiteName                    string                  `json:"site_name"`
-	SiteLogo                    string                  `json:"site_logo"`
-	SiteSubtitle                string                  `json:"site_subtitle"`
-	APIBaseURL                  string                  `json:"api_base_url"`
-	ContactInfo                 string                  `json:"contact_info"`
-	HomeContactEnabled          bool                    `json:"home_contact_enabled"`
-	ContactMethods              []service.ContactMethod `json:"contact_methods"`
-	DocURL                      string                  `json:"doc_url"`
-	HomeContent                 string                  `json:"home_content"`
-	CompactHomeEnabled          bool                    `json:"compact_home_enabled"`
-	HideCcsImportButton         bool                    `json:"hide_ccs_import_button"`
-	PurchaseSubscriptionEnabled *bool                   `json:"purchase_subscription_enabled"`
-	PurchaseSubscriptionURL     *string                 `json:"purchase_subscription_url"`
-	TableDefaultPageSize        int                     `json:"table_default_page_size"`
-	TablePageSizeOptions        []int                   `json:"table_page_size_options"`
-	CustomMenuItems             *[]dto.CustomMenuItem   `json:"custom_menu_items"`
-	CustomEndpoints             *[]dto.CustomEndpoint   `json:"custom_endpoints"`
+	BillingDefaultDisplayCurrency string                  `json:"billing_default_display_currency"`
+	BillingUSDToCNYRate           float64                 `json:"billing_usd_to_cny_rate"`
+	SiteName                      string                  `json:"site_name"`
+	SiteLogo                      string                  `json:"site_logo"`
+	SiteSubtitle                  string                  `json:"site_subtitle"`
+	APIBaseURL                    string                  `json:"api_base_url"`
+	ContactInfo                   string                  `json:"contact_info"`
+	HomeContactEnabled            bool                    `json:"home_contact_enabled"`
+	ContactMethods                []service.ContactMethod `json:"contact_methods"`
+	DocURL                        string                  `json:"doc_url"`
+	HomeContent                   string                  `json:"home_content"`
+	CompactHomeEnabled            bool                    `json:"compact_home_enabled"`
+	HideCcsImportButton           bool                    `json:"hide_ccs_import_button"`
+	PurchaseSubscriptionEnabled   *bool                   `json:"purchase_subscription_enabled"`
+	PurchaseSubscriptionURL       *string                 `json:"purchase_subscription_url"`
+	TableDefaultPageSize          int                     `json:"table_default_page_size"`
+	TablePageSizeOptions          []int                   `json:"table_page_size_options"`
+	CustomMenuItems               *[]dto.CustomMenuItem   `json:"custom_menu_items"`
+	CustomEndpoints               *[]dto.CustomEndpoint   `json:"custom_endpoints"`
 
 	// 默认配置
 	DefaultConcurrency                        int                               `json:"default_concurrency"`
@@ -516,6 +518,10 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 			return
 		}
 		req.ContactMethods = methods
+	}
+	if _, sent := sentFields["billing_default_display_currency"]; sent && req.BillingDefaultDisplayCurrency != "CNY" && req.BillingDefaultDisplayCurrency != "USD" {
+		response.BadRequest(c, "billing_default_display_currency must be CNY or USD")
+		return
 	}
 	auditReq := settingsAuditRequest(req)
 	omitted := omittedSettingKeys(sentFields)
@@ -1656,6 +1662,8 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		GoogleOAuthClientSecret:                req.GoogleOAuthClientSecret,
 		GoogleOAuthRedirectURL:                 req.GoogleOAuthRedirectURL,
 		GoogleOAuthFrontendRedirectURL:         req.GoogleOAuthFrontendRedirectURL,
+		BillingDefaultDisplayCurrency:          req.BillingDefaultDisplayCurrency,
+		BillingUSDToCNYRate:                    req.BillingUSDToCNYRate,
 		SiteName:                               req.SiteName,
 		SiteLogo:                               req.SiteLogo,
 		SiteSubtitle:                           req.SiteSubtitle,
@@ -2322,6 +2330,8 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		GoogleOAuthClientSecretConfigured:                      updatedSettings.GoogleOAuthClientSecretConfigured,
 		GoogleOAuthRedirectURL:                                 updatedSettings.GoogleOAuthRedirectURL,
 		GoogleOAuthFrontendRedirectURL:                         updatedSettings.GoogleOAuthFrontendRedirectURL,
+		BillingDefaultDisplayCurrency:                          updatedSettings.BillingDefaultDisplayCurrency,
+		BillingUSDToCNYRate:                                    updatedSettings.BillingUSDToCNYRate,
 		SiteName:                                               updatedSettings.SiteName,
 		SiteLogo:                                               updatedSettings.SiteLogo,
 		SiteSubtitle:                                           updatedSettings.SiteSubtitle,

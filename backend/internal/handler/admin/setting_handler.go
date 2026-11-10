@@ -62,6 +62,7 @@ type SettingHandler struct {
 	notificationEmailService *service.NotificationEmailService
 	totpService              *service.TotpService
 	userService              *service.UserService
+	paymentExchangeRate      *service.PaymentExchangeRateService
 }
 
 // NewSettingHandler 创建系统设置处理器
@@ -74,6 +75,7 @@ func NewSettingHandler(settingService *service.SettingService, emailService *ser
 		paymentConfigService: paymentConfigService,
 		paymentService:       paymentService,
 		userAttributeService: userAttributeService,
+		paymentExchangeRate:  service.NewPaymentExchangeRateService(),
 	}
 }
 
@@ -246,6 +248,8 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 		GoogleOAuthClientSecretConfigured:                      settings.GoogleOAuthClientSecretConfigured,
 		GoogleOAuthRedirectURL:                                 settings.GoogleOAuthRedirectURL,
 		GoogleOAuthFrontendRedirectURL:                         settings.GoogleOAuthFrontendRedirectURL,
+		BillingDefaultDisplayCurrency:                          settings.BillingDefaultDisplayCurrency,
+		BillingUSDToCNYRate:                                    settings.BillingUSDToCNYRate,
 		SiteName:                                               settings.SiteName,
 		SiteLogo:                                               settings.SiteLogo,
 		SiteSubtitle:                                           settings.SiteSubtitle,

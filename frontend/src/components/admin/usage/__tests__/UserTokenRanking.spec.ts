@@ -2,6 +2,8 @@ import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 
 import UserTokenRanking from '../UserTokenRanking.vue'
+import { setBillingDisplaySettings, useBillingCurrency } from '@/composables/useBillingCurrency'
+import type { PublicSettings } from '@/types'
 
 const getUserBreakdown = vi.fn()
 
@@ -77,5 +79,26 @@ describe('UserTokenRanking', () => {
 
     expect(getUserBreakdown).toHaveBeenCalledTimes(2)
     expect(getUserBreakdown).toHaveBeenLastCalledWith(expect.objectContaining({ user_id: 9 }))
+  })
+
+  it('converts billed costs when the display currency changes without reloading data', async () => {
+    setBillingDisplaySettings({ billing_default_display_currency: 'CNY', billing_usd_to_cny_rate: 7.2 } as PublicSettings)
+    const billing = useBillingCurrency()
+    billing.setCurrency('CNY')
+    const user = item(1, 100)
+    getUserBreakdown.mockResolvedValue({ users: [user] })
+    const wrapper = mountRanking()
+    try {
+      await flushPromises()
+      expect(wrapper.find('tbody').text()).toContain('¥3.6000')
+      billing.setCurrency('USD')
+      await flushPromises()
+      expect(wrapper.find('tbody').text()).toContain('$0.5000')
+      expect(user.actual_cost).toBe(0.5)
+      expect(getUserBreakdown).toHaveBeenCalledTimes(1)
+    } finally {
+      wrapper.unmount()
+      billing.setCurrency('USD')
+    }
   })
 })

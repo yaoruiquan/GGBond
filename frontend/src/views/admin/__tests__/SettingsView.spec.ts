@@ -564,6 +564,7 @@ function mountView() {
         ProxySelector: true,
         ImageUpload: ImageUploadStub,
         BackupSettings: true,
+        PaymentExchangeRateRecommendation: true,
       },
     },
   });
@@ -723,6 +724,52 @@ describe("admin SettingsView payment visible method controls", () => {
     });
     fetchPublicSettings.mockResolvedValue(undefined);
     adminSettingsFetch.mockResolvedValue(undefined);
+  });
+
+  it("fills the recommended recharge multiplier in the draft and saves all digits only on submit", async () => {
+    const wrapper = mountView();
+    await flushPromises();
+    await openPaymentTab(wrapper);
+    const recommendation = wrapper.findComponent({ name: "PaymentExchangeRateRecommendation" });
+    recommendation.vm.$emit("apply", 0.13888889);
+    await flushPromises();
+    expect(wrapper.get('[data-testid="balance-recharge-multiplier"]').element).toHaveProperty("value", "0.13888889");
+    expect(updateSettings).not.toHaveBeenCalled();
+    await wrapper.get("form").trigger("submit");
+    await flushPromises();
+    expect(updateSettings).toHaveBeenCalledWith(expect.objectContaining({ payment_balance_recharge_multiplier: 0.13888889 }));
+    wrapper.unmount();
+  });
+
+  it("blocks the CNY multiplier recommendation for an enabled USD payment channel", async () => {
+    getSettings.mockResolvedValue({ ...baseSettingsResponse, payment_enabled_types: ["stripe", "alipay"] });
+    getProviders.mockResolvedValue({ data: [{ id: 1, provider_key: "stripe", enabled: true, config: { currency: "USD" }, supported_types: ["stripe"] }] });
+    const wrapper = mountView();
+    await flushPromises();
+    await openPaymentTab(wrapper);
+    const recommendation = wrapper.findComponent({ name: "PaymentExchangeRateRecommendation" });
+    expect(recommendation.props("multiplierUnavailableReason")).toBe("admin.settings.payment.exchangeRate.mixedCurrencies");
+    expect(updateSettings).not.toHaveBeenCalled();
+    wrapper.unmount();
+  });
+
+  it("fills both draft fields without touching the subscription exchange rate", async () => {
+    getSettings.mockResolvedValue({ ...baseSettingsResponse, billing_usd_to_cny_rate: 7.1, billing_default_display_currency: "CNY", payment_subscription_usd_to_cny_rate: 6.9 });
+    const wrapper = mountView();
+    await flushPromises();
+    await openPaymentTab(wrapper);
+    expect(wrapper.get('[data-testid="billing-display-rate"]').element).toHaveProperty("value", "7.1");
+    const recommendation = wrapper.findComponent({ name: "PaymentExchangeRateRecommendation" });
+    recommendation.vm.$emit("applyDisplay", 7.2);
+    await flushPromises();
+    expect(wrapper.get('[data-testid="balance-recharge-multiplier"]').element).toHaveProperty("value", "1");
+    recommendation.vm.$emit("applyBoth", { usd_to_cny: 7.2, balance_recharge_multiplier: 0.13888889 });
+    await flushPromises();
+    expect(updateSettings).not.toHaveBeenCalled();
+    await wrapper.get("form").trigger("submit");
+    await flushPromises();
+    expect(updateSettings).toHaveBeenCalledWith(expect.objectContaining({ billing_default_display_currency: "CNY", billing_usd_to_cny_rate: 7.2, payment_balance_recharge_multiplier: 0.13888889, payment_subscription_usd_to_cny_rate: 6.9 }));
+    wrapper.unmount();
   });
 
   it("loads and saves the open button visibility for each custom menu", async () => {

@@ -149,23 +149,25 @@ type SystemSettings struct {
 	GoogleOAuthRedirectURL            string
 	GoogleOAuthFrontendRedirectURL    string
 
-	SiteName                    string
-	SiteLogo                    string
-	SiteSubtitle                string
-	APIBaseURL                  string
-	ContactInfo                 string
-	HomeContactEnabled          bool
-	ContactMethods              []ContactMethod
-	DocURL                      string
-	HomeContent                 string
-	CompactHomeEnabled          bool
-	HideCcsImportButton         bool
-	PurchaseSubscriptionEnabled bool
-	PurchaseSubscriptionURL     string
-	TableDefaultPageSize        int
-	TablePageSizeOptions        []int
-	CustomMenuItems             string // JSON array of custom menu items
-	CustomEndpoints             string // JSON array of custom endpoints
+	BillingDefaultDisplayCurrency string
+	BillingUSDToCNYRate           float64
+	SiteName                      string
+	SiteLogo                      string
+	SiteSubtitle                  string
+	APIBaseURL                    string
+	ContactInfo                   string
+	HomeContactEnabled            bool
+	ContactMethods                []ContactMethod
+	DocURL                        string
+	HomeContent                   string
+	CompactHomeEnabled            bool
+	HideCcsImportButton           bool
+	PurchaseSubscriptionEnabled   bool
+	PurchaseSubscriptionURL       string
+	TableDefaultPageSize          int
+	TablePageSizeOptions          []int
+	CustomMenuItems               string // JSON array of custom menu items
+	CustomEndpoints               string // JSON array of custom endpoints
 
 	DefaultConcurrency           int
 	DefaultBalance               float64
@@ -353,6 +355,8 @@ type PublicSettings struct {
 	AliyunCaptchaSceneID                string
 	AliyunCaptchaPrefix                 string
 	AliyunCaptchaRegion                 string
+	BillingDefaultDisplayCurrency       string
+	BillingUSDToCNYRate                 float64
 	SiteName                            string
 	SiteLogo                            string
 	SiteSubtitle                        string

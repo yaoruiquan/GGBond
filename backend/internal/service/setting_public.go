@@ -180,6 +180,8 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		SettingKeyAliyunCaptchaPrefix,
 		SettingKeyAliyunCaptchaRegion,
 		SettingKeyAPIKeyACLTrustForwardedIP,
+		SettingKeyBillingDefaultDisplayCurrency,
+		SettingKeyBillingUSDToCNYRate,
 		SettingKeySiteName,
 		SettingKeySiteLogo,
 		SettingKeySiteSubtitle,
@@ -326,6 +328,8 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		AliyunCaptchaSceneID:                settings[SettingKeyAliyunCaptchaSceneID],
 		AliyunCaptchaPrefix:                 settings[SettingKeyAliyunCaptchaPrefix],
 		AliyunCaptchaRegion:                 normalizeAliyunCaptchaRegion(settings[SettingKeyAliyunCaptchaRegion]),
+		BillingDefaultDisplayCurrency:       normalizeBillingDisplayCurrency(settings[SettingKeyBillingDefaultDisplayCurrency]),
+		BillingUSDToCNYRate:                 parseBillingUSDToCNYRate(settings[SettingKeyBillingUSDToCNYRate]),
 		SiteName:                            s.getStringOrDefault(settings, SettingKeySiteName, defaultSiteName),
 		SiteLogo:                            settings[SettingKeySiteLogo],
 		SiteSubtitle:                        s.getStringOrDefault(settings, SettingKeySiteSubtitle, "Subscription to API Conversion Platform"),
@@ -588,6 +592,8 @@ type PublicSettingsInjectionPayload struct {
 	AliyunCaptchaSceneID                string                   `json:"aliyun_captcha_scene_id"`
 	AliyunCaptchaPrefix                 string                   `json:"aliyun_captcha_prefix"`
 	AliyunCaptchaRegion                 string                   `json:"aliyun_captcha_region"`
+	BillingDefaultDisplayCurrency       string                   `json:"billing_default_display_currency"`
+	BillingUSDToCNYRate                 float64                  `json:"billing_usd_to_cny_rate"`
 	SiteName                            string                   `json:"site_name"`
 	SiteLogo                            string                   `json:"site_logo"`
 	SiteSubtitle                        string                   `json:"site_subtitle"`
@@ -685,6 +691,8 @@ func (s *SettingService) GetPublicSettingsForInjection(ctx context.Context) (any
 		AliyunCaptchaSceneID:                settings.AliyunCaptchaSceneID,
 		AliyunCaptchaPrefix:                 settings.AliyunCaptchaPrefix,
 		AliyunCaptchaRegion:                 settings.AliyunCaptchaRegion,
+		BillingDefaultDisplayCurrency:       settings.BillingDefaultDisplayCurrency,
+		BillingUSDToCNYRate:                 settings.BillingUSDToCNYRate,
 		SiteName:                            settings.SiteName,
 		SiteLogo:                            settings.SiteLogo,
 		SiteSubtitle:                        settings.SiteSubtitle,

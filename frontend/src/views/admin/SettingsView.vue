@@ -8048,6 +8048,7 @@
                     }}</label>
                     <input
                       :value="form.payment_balance_recharge_multiplier || ''"
+                      data-testid="balance-recharge-multiplier"
                       @input="
                         form.payment_balance_recharge_multiplier =
                           parseFloat(
@@ -8055,8 +8056,8 @@
                           ) || 1
                       "
                       type="number"
-                      step="0.01"
-                      min="0.01"
+                      step="0.00000001"
+                      min="0.00000001"
                       class="input"
                     />
                     <p class="mt-0.5 text-xs text-gray-400">
@@ -8074,7 +8075,7 @@
                           usd: (
                             Number(form.payment_balance_recharge_multiplier) ||
                             1
-                          ).toFixed(2),
+                          ).toFixed(8),
                         })
                       }}
                     </p>
@@ -8107,6 +8108,28 @@
                       }}
                     </p>
                   </div>
+                  <div>
+                    <label class="input-label" for="billing-display-rate">{{ t('admin.settings.payment.exchangeRate.displayRate') }}</label>
+                    <input id="billing-display-rate" v-model.number="form.billing_usd_to_cny_rate" data-testid="billing-display-rate" type="number" min="0" step="0.00000001" class="input" />
+                    <p class="mt-1 text-xs text-gray-500">{{ t('admin.settings.payment.exchangeRate.displayHint') }}</p>
+                  </div>
+                  <div>
+                    <label class="input-label" for="billing-default-currency">{{ t('admin.settings.payment.exchangeRate.defaultCurrency') }}</label>
+                    <select id="billing-default-currency" v-model="form.billing_default_display_currency" class="input">
+                      <option value="CNY">{{ t('common.billingCurrency.cny') }}</option>
+                      <option value="USD">{{ t('common.billingCurrency.usd') }}</option>
+                    </select>
+                  </div>
+                  <PaymentExchangeRateRecommendation
+                    v-if="activeTab === 'payment'"
+                    class="col-span-full"
+                    :current-multiplier="Number(form.payment_balance_recharge_multiplier) || 1"
+                    :current-display-rate="Number(form.billing_usd_to_cny_rate) || 0"
+                    :multiplier-unavailable-reason="rechargeRecommendationUnavailableReason"
+                    @apply="form.payment_balance_recharge_multiplier = $event"
+                    @apply-display="form.billing_usd_to_cny_rate = $event"
+                    @apply-both="form.payment_balance_recharge_multiplier = $event.balance_recharge_multiplier; form.billing_usd_to_cny_rate = $event.usd_to_cny"
+                  />
                   <div>
                     <label class="input-label">{{
                       t("admin.settings.payment.rechargeFeeRate")
@@ -8198,7 +8221,7 @@
                     <label class="input-label">{{
                       t("admin.settings.payment.cancelRateLimit")
                     }}</label>
-                    <div class="flex items-center gap-2">
+                    <div class="flex flex-wrap items-center gap-2">
                       <button
                         type="button"
                         :class="[
@@ -9017,6 +9040,7 @@ import { validateContactMethods } from "@/utils/contactMethods";
 import BackupSettings from "@/views/admin/BackupView.vue";
 import EmailTemplateEditor from "@/views/admin/settings/EmailTemplateEditor.vue";
 import RechargeBonusTierEditor from "@/components/admin/settings/RechargeBonusTierEditor.vue";
+import PaymentExchangeRateRecommendation from "@/components/admin/settings/PaymentExchangeRateRecommendation.vue";
 import {
   normalizeRechargeBonusMode,
   normalizeRechargeBonusTiers,
@@ -9815,6 +9839,8 @@ const form = reactive<SettingsForm>({
   payment_max_pending_orders: 3,
   payment_order_timeout_minutes: 30,
   payment_balance_disabled: false,
+  billing_default_display_currency: 'CNY' as 'CNY' | 'USD',
+  billing_usd_to_cny_rate: 0,
   payment_balance_recharge_multiplier: 1,
   payment_subscription_usd_to_cny_rate: 0,
   payment_recharge_fee_rate: 0,
@@ -11708,6 +11734,8 @@ async function saveSettings() {
       payment_order_timeout_minutes:
         Number(form.payment_order_timeout_minutes) || 0,
       payment_balance_disabled: form.payment_balance_disabled,
+      billing_default_display_currency: form.billing_default_display_currency,
+      billing_usd_to_cny_rate: Number(form.billing_usd_to_cny_rate) || 0,
       payment_balance_recharge_multiplier:
         Number(form.payment_balance_recharge_multiplier) || 1,
       payment_subscription_usd_to_cny_rate:
@@ -12604,8 +12632,22 @@ function slog(...args: unknown[]) {
 }
 
 const providersLoading = ref(false);
+const providersLoaded = ref(false);
 const providerSaving = ref(false);
 const providers = ref<ProviderInstance[]>([]);
+const rechargeRecommendationUnavailableReason = computed(() => {
+  if (!providersLoaded.value || providersLoading.value) {
+    return t("admin.settings.payment.exchangeRate.channelsUnverified");
+  }
+  const currencies = new Set(providers.value
+    .filter((provider) => provider.enabled && form.payment_enabled_types.includes(provider.provider_key))
+    .filter((provider) => ["stripe", "airwallex"].includes(provider.provider_key))
+    .map((provider) => String(provider.config?.currency || "CNY").trim().toUpperCase())
+    .filter((currency) => currency !== "CNY"));
+  return currencies.size > 0
+    ? t("admin.settings.payment.exchangeRate.mixedCurrencies", { currencies: [...currencies].join(", ") })
+    : "";
+});
 const showProviderDialog = ref(false);
 const showDeleteProviderDialog = ref(false);
 const editingProvider = ref<ProviderInstance | null>(null);
@@ -12749,6 +12791,7 @@ function showProviderEnablementConflict(
 
 async function loadProviders() {
   providersLoading.value = true;
+  providersLoaded.value = false;
   try {
     const res = await adminAPI.payment.getProviders();
     // Normalize supported_types: backend returns null when the list is empty
@@ -12760,6 +12803,7 @@ async function loadProviders() {
         ? p.supported_types
         : [],
     }));
+    providersLoaded.value = true;
   } catch (err: unknown) {
     appStore.showError(extractI18nErrorMessage(err, t, "payment.errors", t("common.error")));
   } finally {

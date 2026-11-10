@@ -1,5 +1,6 @@
 export default {
   common: {
+    billingCurrency: { label: 'Display currency', cny: 'Yuan CNY', usd: 'Dollar USD', hint: 'Equivalent at the current site rate: 1 USD = {rate} CNY, including historical usage. Payments keep their actual currency.', unavailable: 'CNY conversion is not configured. Displaying USD.', inputUSD: 'Input unit: USD; equivalent {amount}' },
     loading: 'Loading...',
     submitting: 'Submitting...',
     justNow: 'just now',

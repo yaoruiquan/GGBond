@@ -11,6 +11,8 @@ describe('development public settings injection', () => {
 
   it('keeps contact text inside the settings script and preserves its value', async () => {
     const settings = {
+      billing_default_display_currency: 'CNY',
+      billing_usd_to_cny_rate: 7.23456789,
       contact_methods: [{ id: 'support', label: '</script><script>alert(1)</script>', text: '<!-- support -->', image_data_url: '', enabled: true }],
       home_contact_enabled: true,
     }

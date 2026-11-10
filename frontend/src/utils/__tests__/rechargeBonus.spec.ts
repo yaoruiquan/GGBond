@@ -19,6 +19,19 @@ const tiers = [
   { min_amount: 1000, bonus_percent: 35 },
 ]
 
+describe('USD credit precision', () => {
+  it('keeps eight decimals for credits and bonuses while rounding cash separately', () => {
+    const quote = quoteRechargeBonus([{ min_amount: 1, bonus_percent: 15 }], 1, { multiplier: 0.13888889 })
+    expect(quote.base).toBe(0.13888889)
+    expect(quote.bonus).toBe(0.02083333)
+    expect(quote.credited).toBe(0.15972222)
+    const discount = quoteRechargeBonus([{ min_amount: 1, bonus_percent: 15 }], 1, { multiplier: 0.13888889, mode: 'discount' })
+    expect(discount.payBase).toBe(0.85)
+    expect(discount.credited).toBe(0.13888889)
+    expect(discount.bonus).toBe(0.02083333)
+  })
+})
+
 describe('rechargeBonus helpers', () => {
   it('normalizes settings payload: drops invalid, dedupes, sorts ascending', () => {
     expect(
@@ -78,7 +91,7 @@ describe('rechargeBonus helpers', () => {
 
   it('calculates bonus on the credited base with cent rounding', () => {
     expect(calculateRechargeBonus(100, 20)).toBe(20)
-    expect(calculateRechargeBonus(33.33, 15)).toBe(5)
+    expect(calculateRechargeBonus(33.33, 15)).toBe(4.9995)
     expect(calculateRechargeBonus(100, 0)).toBe(0)
   })
 

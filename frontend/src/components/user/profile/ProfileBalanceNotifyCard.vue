@@ -26,7 +26,7 @@
             <span class="text-xs text-gray-400 ml-2">{{ t('profile.balanceNotify.thresholdHint') }}</span>
           </label>
           <div class="flex items-center gap-2">
-            <span class="text-gray-500">$</span>
+            <span class="text-gray-500">USD</span>
             <input
               v-model.number="customThreshold"
               type="number"
@@ -45,6 +45,7 @@
           </div>
         </div>
 
+        <p class="input-hint">{{ t('common.billingCurrency.inputUSD', { amount: formatMoney(customThreshold || systemDefaultThreshold) }) }}</p>
         <!-- Email list with toggles -->
         <div>
           <label class="input-label">{{ t('profile.balanceNotify.extraEmails') }}</label>
@@ -157,6 +158,8 @@
 </template>
 
 <script setup lang="ts">
+import { useBillingCurrency } from '@/composables/useBillingCurrency'
+const { formatMoney } = useBillingCurrency()
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'

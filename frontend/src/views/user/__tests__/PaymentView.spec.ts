@@ -8,6 +8,7 @@ import SubscriptionPlanCard from '@/components/payment/SubscriptionPlanCard.vue'
 import en from '@/i18n/locales/en'
 import zh from '@/i18n/locales/zh'
 import type { CheckoutInfoResponse, MethodLimit, SubscriptionPlan } from '@/types/payment'
+import { setBillingDisplaySettings, useBillingCurrency } from '@/composables/useBillingCurrency'
 
 const routeState = vi.hoisted(() => ({
   path: '/purchase',
@@ -26,6 +27,7 @@ const showWarning = vi.hoisted(() => vi.fn())
 const getCheckoutInfo = vi.hoisted(() => vi.fn())
 const bridgeInvoke = vi.hoisted(() => vi.fn())
 const translate = vi.hoisted(() => vi.fn((key: string) => key))
+const authUser = vi.hoisted(() => ({ username: 'demo-user', balance: 0 }))
 // Public settings live in a reactive holder so tests can flip feature flags after mount
 // and exercise the watchers that react to them.
 const appStoreState = vi.hoisted(() => ({
@@ -57,10 +59,7 @@ vi.mock('vue-i18n', async () => {
 
 vi.mock('@/stores/auth', () => ({
   useAuthStore: () => ({
-    user: {
-      username: 'demo-user',
-      balance: 0,
-    },
+    user: authUser,
     refreshUser,
   }),
 }))
@@ -375,6 +374,30 @@ describe('PaymentView subscription plan grid', () => {
 })
 
 describe('PaymentView recharge rate preview', () => {
+  it('converts the current wallet balance and updates it when switching display currency', async () => {
+    routeState.path = '/purchase'
+    routeState.query = {}
+    getCheckoutInfo.mockReset().mockResolvedValue(checkoutInfoFixture())
+    authUser.balance = 10
+    setBillingDisplaySettings({ billing_default_display_currency: 'CNY', billing_usd_to_cny_rate: 7.2 } as never)
+    const billing = useBillingCurrency()
+    billing.setCurrency('CNY')
+    const wrapper = shallowMount(PaymentView, { global: { stubs: { AppLayout: { template: '<div><slot /></div>' }, Teleport: true, Transition: false } } })
+    try {
+      await flushPromises()
+      expect(wrapper.text()).toContain('payment.currentBalance: ¥72.00')
+      billing.setCurrency('USD')
+      await flushPromises()
+      expect(wrapper.text()).toContain('payment.currentBalance: $10.00')
+      expect(authUser.balance).toBe(10)
+      expect(createOrder).not.toHaveBeenCalled()
+    } finally {
+      wrapper.unmount()
+      authUser.balance = 0
+      billing.setCurrency('USD')
+    }
+  })
+
   it('uses the selected payment method currency in both locale templates', async () => {
     translate.mockClear()
     routeState.path = '/purchase'
@@ -404,7 +427,7 @@ describe('PaymentView recharge rate preview', () => {
 
     expect(translate).toHaveBeenCalledWith('payment.rechargeRatePreview', {
       currency: 'USD',
-      usd: '0.50',
+      usd: '0.50000000',
     })
     expect(en.payment.rechargeRatePreview).toBe('Current rate: 1 {currency} = {usd} USD')
     expect(zh.payment.rechargeRatePreview).toBe('当前倍率：1 {currency} = {usd} USD')

@@ -1,3 +1,4 @@
+import { setBillingDisplaySettings } from '@/composables/useBillingCurrency'
 /**
  * Application State Store
  * Manages global UI state including sidebar, loading indicators, and toast notifications
@@ -294,6 +295,8 @@ export const useAppStore = defineStore('app', () => {
     // Older injected settings may not contain the Home contact fields.
     config = {
       ...config,
+      billing_default_display_currency: config.billing_default_display_currency === 'USD' ? 'USD' : 'CNY',
+      billing_usd_to_cny_rate: Number.isFinite(config.billing_usd_to_cny_rate) && Number(config.billing_usd_to_cny_rate) > 0 ? config.billing_usd_to_cny_rate : 0,
       home_contact_enabled: config.home_contact_enabled === true,
       contact_methods: config.home_contact_enabled === true && Array.isArray(config.contact_methods)
         ? config.contact_methods.filter((method) => method.enabled)
@@ -302,6 +305,7 @@ export const useAppStore = defineStore('app', () => {
     if (typeof window !== 'undefined') {
       window.__APP_CONFIG__ = { ...config }
     }
+    setBillingDisplaySettings(config)
     cachedPublicSettings.value = config
     siteName.value = config.site_name || DEFAULT_SITE_NAME
     siteLogo.value = config.site_logo || DEFAULT_SITE_LOGO
@@ -348,6 +352,8 @@ export const useAppStore = defineStore('app', () => {
         aliyun_captcha_scene_id: '',
         aliyun_captcha_prefix: '',
         aliyun_captcha_region: 'cn',
+        billing_default_display_currency: 'CNY',
+        billing_usd_to_cny_rate: 0,
         site_name: siteName.value,
         site_logo: siteLogo.value,
         site_subtitle: '',

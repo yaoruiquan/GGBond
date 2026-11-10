@@ -527,6 +527,22 @@ func TestQueryAndFinalizeRefundPassesPendingAuditTimeToProvider(t *testing.T) {
 	require.True(t, pendingAudit.CreatedAt.Equal(prov.lastQuery.RequestedAt), "RequestedAt = %v, want %v", prov.lastQuery.RequestedAt, pendingAudit.CreatedAt)
 }
 
+func TestQueryAndFinalizeRefundUsesCashCurrencyAmount(t *testing.T) {
+	ctx := context.Background()
+	client := newPaymentConfigServiceTestClient(t)
+	order := createPendingRefundOrderForTest(t, ctx, client, "query-cash-amount")
+	_, err := client.PaymentOrder.UpdateOneID(order.ID).
+		SetAmount(10.00000008).SetPayAmount(72).SetRefundAmount(5.00000004).Save(ctx)
+	require.NoError(t, err)
+	prov := &refundQueryProviderTestDouble{refundResponse: &payment.RefundResponse{RefundID: "rf_test", Status: payment.ProviderStatusPending}}
+	restore := replacePaymentProviderFactoryForTest(t, prov)
+	defer restore()
+	svc := &PaymentService{entClient: client, loadBalancer: &captureLoadBalancer{}, userRepo: &mockUserRepo{}}
+	_, err = svc.QueryAndFinalizeRefund(ctx, order.ID)
+	require.NoError(t, err)
+	require.Equal(t, "36.00", prov.lastQuery.Amount, "the provider queries the original cash amount, not USD wallet credit")
+}
+
 func TestFinalizePendingRefundSuccessRejectsStaleCallerBeforeSecondDeduction(t *testing.T) {
 	ctx := context.Background()
 	client := newPaymentConfigServiceTestClient(t)

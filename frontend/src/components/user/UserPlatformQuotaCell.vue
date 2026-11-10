@@ -27,6 +27,8 @@
 </template>
 
 <script setup lang="ts">
+import { useBillingCurrency } from '@/composables/useBillingCurrency'
+const { formatMoney } = useBillingCurrency()
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { PlatformQuotaItem } from '@/api/admin/users'
@@ -58,7 +60,7 @@ const configured = computed(() => {
 // 去尾零、最多 2 位小数：100→"100"，90.5→"90.5"，0.42→"0.42"
 function fmtUsd(n: number): string {
   if (n == null || Number.isNaN(n)) return '0'
-  return String(Math.round(n * 100) / 100)
+  return formatMoney(n)
 }
 function fmtLimit(n: number | null): string {
   return n == null ? '—' : fmtUsd(n)

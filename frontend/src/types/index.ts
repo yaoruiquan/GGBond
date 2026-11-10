@@ -217,6 +217,8 @@ export interface ContactMethod {
 }
 
 export interface PublicSettings {
+  billing_default_display_currency?: 'CNY' | 'USD'
+  billing_usd_to_cny_rate?: number
   registration_enabled: boolean
   email_verify_enabled: boolean
   force_email_on_third_party_signup: boolean

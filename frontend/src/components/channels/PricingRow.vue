@@ -6,8 +6,9 @@
 </template>
 
 <script setup lang="ts">
+import { useBillingCurrency } from '@/composables/useBillingCurrency'
+const { formatPrice } = useBillingCurrency()
 import { computed } from 'vue'
-import { formatScaled } from '@/utils/pricing'
 
 const props = withDefaults(
   defineProps<{
@@ -20,6 +21,6 @@ const props = withDefaults(
 )
 
 const display = computed(() =>
-  props.value == null ? '-' : `${formatScaled(props.value, props.scale)} ${props.unit}`
+  props.value == null ? '-' : `${formatPrice(props.value, props.scale)} ${props.unit}`
 )
 </script>

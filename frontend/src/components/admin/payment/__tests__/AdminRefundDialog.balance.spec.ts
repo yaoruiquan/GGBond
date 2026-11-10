@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { enableAutoUnmount, mount } from '@vue/test-utils'
 import type { PaymentOrder } from '@/types/payment'
 import AdminRefundDialog from '../AdminRefundDialog.vue'
+import { setBillingDisplaySettings, useBillingCurrency } from '@/composables/useBillingCurrency'
 
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
 enableAutoUnmount(afterEach)
@@ -49,5 +50,24 @@ describe('refund balance warning', () => {
     const wrapper = await openRefund()
     await wrapper.get('#deduct-balance').setValue(false)
     expect(wrapper.text()).not.toContain(warning)
+  })
+
+  it('preserves eight-digit USD refund input while displaying CNY equivalents and original cash paid', async () => {
+    setBillingDisplaySettings({ billing_default_display_currency: 'CNY', billing_usd_to_cny_rate: 7.2 } as never)
+    useBillingCurrency().setCurrency('CNY')
+    try {
+      const wrapper = await openRefund({ amount: 10.00000008, pay_amount: 72, currency: 'CNY' })
+      const input = wrapper.get('input[type="number"]')
+      expect(input.attributes('step')).toBe('0.00000001')
+      expect((input.element as HTMLInputElement).value).toBe('10.00000008')
+      expect(wrapper.text()).toContain('¥72.00')
+      expect(wrapper.text()).toContain('USD')
+      await input.setValue('5.00000004')
+      await wrapper.get('textarea').setValue('partial refund')
+      await wrapper.get('form').trigger('submit')
+      expect(wrapper.emitted('confirm')?.[0]?.[0]).toMatchObject({ amount: 5.00000004 })
+    } finally {
+      useBillingCurrency().setCurrency('USD')
+    }
   })
 })
