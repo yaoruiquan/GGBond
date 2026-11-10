@@ -259,6 +259,17 @@ else:
         self.assertIn("env.DRY_RUN != 'true'", workflow)
         self.assertIn('ref: ${{ needs.prepare.outputs.sha }}', workflow)
 
+    def test_security_failure_blocks_release_builds_and_publication(self):
+        jobs = yaml.safe_load((ROOT / '.github/workflows/release.yml').read_text())['jobs']
+        self.assertEqual(jobs['security']['uses'], './.github/workflows/security-scan.yml')
+        self.assertEqual(jobs['security']['with']['source_ref'], '${{ needs.prepare.outputs.sha }}')
+        for name in ('build-frontend', 'build-binaries', 'release'):
+            self.assertIn('security', jobs[name]['needs'])
+        scan = yaml.safe_load((ROOT / '.github/workflows/security-scan.yml').read_text())
+        for job in scan['jobs'].values():
+            checkout = next(step for step in job['steps'] if step.get('uses', '').startswith('actions/checkout@'))
+            self.assertEqual(checkout['with']['ref'], '${{ inputs.source_ref || github.sha }}')
+
 
 if __name__ == '__main__':
     unittest.main()

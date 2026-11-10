@@ -6,7 +6,7 @@
 
 ## 发布链路
 
-Release 解析一个固定提交 SHA，对该 SHA 运行可复用 CI，全部通过后才发布镜像。镜像发布输出 `repository@sha256:...`，生产任务直接消费该 digest，不通过 `latest` 再解析版本。dry-run 不发布、不部署。
+Release 解析一个固定提交 SHA，对该 SHA 运行可复用 CI 和 Security Scan（Go 可达漏洞检查、前端生产依赖审计），全部通过后才构建并发布镜像。镜像发布输出 `repository@sha256:...`，生产任务直接消费该 digest，不通过 `latest` 再解析版本。dry-run 不发布、不部署。
 
 生产任务使用 `production` GitHub Environment。未启用时明确跳过部署；启用后，缺少配置或精确 SHA 的迁移兼容性确认会失败，不会静默跳过。VERSION 文件的机器人同步不作为部署源。
 

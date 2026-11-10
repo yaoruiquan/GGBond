@@ -95,8 +95,14 @@ jobs:
     with:
       source_ref: ${{ needs.prepare.outputs.sha }}
 
+  security:
+    needs: prepare
+    uses: ./.github/workflows/security-scan.yml
+    with:
+      source_ref: ${{ needs.prepare.outputs.sha }}
+
   build-frontend:
-    needs: [prepare, ci]
+    needs: [prepare, ci, security]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -121,7 +127,7 @@ jobs:
           retention-days: 1
 
   build-binaries:
-    needs: [prepare, ci, build-frontend]
+    needs: [prepare, ci, security, build-frontend]
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -207,7 +213,7 @@ jobs:
           key: ${{ steps.go-cache.outputs.cache-primary-key }}
 
   release:
-    needs: [prepare, ci, build-binaries]
+    needs: [prepare, ci, security, build-binaries]
     runs-on: ubuntu-latest
     permissions:
       contents: write
