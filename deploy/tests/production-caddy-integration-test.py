@@ -35,6 +35,13 @@ class Handler(BaseHTTPRequestHandler):
         pass
 
     def do_GET(self):
+        if self.path == "/business-unavailable":
+            body = b"no eligible account"
+            self.send_response(503)
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
         if self.path == "/ws":
             key = self.headers.get("Sec-WebSocket-Key", "")
             import base64, hashlib
@@ -134,6 +141,14 @@ def make_config(color, token):
 def request(port, path="/"):
     with urllib.request.urlopen("http://127.0.0.1:{}{}".format(port, path), timeout=3) as response:
         return response.read().decode()
+
+
+def request_with_status(port, path):
+    try:
+        with urllib.request.urlopen("http://127.0.0.1:{}{}".format(port, path), timeout=3) as response:
+            return response.status, response.read().decode()
+    except urllib.error.HTTPError as error:
+        return error.code, error.read().decode()
 
 
 def wait_for_port(port):
@@ -274,6 +289,14 @@ def main():
                 raise RuntimeError("{}; Caddy logs: {}".format(sys.exc_info()[1], logs))
             if initial != "blue":
                 raise RuntimeError("initial Caddy route did not reach blue")
+
+            PHASE = "application-level 503 does not evict the upstream"
+            for _ in range(3):
+                status, body = request_with_status(port, "/business-unavailable")
+                if status != 503 or body != "no eligible account":
+                    raise RuntimeError("business failure did not pass through as 503")
+            if request(port) != "blue":
+                raise RuntimeError("application-level 503 incorrectly evicted the healthy upstream")
 
             PHASE = "opening existing SSE/WebSocket streams"
             sse_connection = http.client.HTTPConnection("127.0.0.1", port, timeout=4)

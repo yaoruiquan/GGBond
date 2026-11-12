@@ -52,7 +52,8 @@
 		}
 		fail_duration 30s
 		max_fails 3
-		unhealthy_status 500 502 503 504
+		# Application-level 503 responses (for example, an empty account pool) must not evict the whole upstream.
+		unhealthy_status 500 502 504
 	}
 	# No text/* or implicit encode match: streaming must not be compressed.
 	encode {
