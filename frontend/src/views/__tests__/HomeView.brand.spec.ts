@@ -62,10 +62,11 @@ describe('HomeView brand landing', () => {
     authStore.isAuthenticated = authenticated
     const wrapper = mountHome({ model_plaza_enabled: enabled, model_plaza_require_auth: requireAuth })
     expect(destinations(wrapper).includes('/model-plaza')).toBe(visible)
+    expect(destinations(wrapper)).toContain('/model-market')
   })
 
   it('offers login and registration to anonymous visitors', () => {
-    expect(destinations(mountHome())).toEqual(['/', '/login', '/register', '/register'])
+    expect(destinations(mountHome())).toEqual(['/', '/model-market', '/login', '/register', '/register'])
     expect(authStore.checkAuth).toHaveBeenCalledOnce()
     expect(appStore.fetchPublicSettings).not.toHaveBeenCalled()
   })
@@ -73,7 +74,7 @@ describe('HomeView brand landing', () => {
   it.each([[false, '/dashboard'], [true, '/admin/dashboard']])('routes signed-in users to the correct dashboard (admin=%s)', (admin, destination) => {
     authStore.isAuthenticated = true
     authStore.isAdmin = admin
-    expect(destinations(mountHome())).toEqual(['/', destination, destination])
+    expect(destinations(mountHome())).toEqual(['/', '/model-market', destination, destination])
   })
 
   it('uses default branding when no configuration is present', () => {

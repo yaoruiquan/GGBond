@@ -725,6 +725,48 @@ export default {
     }
   },
 
+  modelMarket: {
+    eyebrow: '独立模型目录',
+    title: '模型市场',
+    description: '按厂商和具体模型浏览能力、上下文与展示价格，快速找到适合你的模型。',
+    dataNote: '价格与参数为展示示例，非实时报价；实际可用模型及费用以控制台为准。',
+    sample: '示例价格',
+    resultCount: '共 {count} 张模型卡片',
+    empty: '没有匹配的模型',
+    emptyHint: '换一个厂商、模型或搜索关键词试试。',
+    close: '关闭详情',
+    filters: {
+      title: '模型筛选',
+      vendor: '厂商',
+      model: '模型',
+      allVendors: '全部厂商',
+      allModels: '全部模型',
+      search: '搜索模型',
+      searchPlaceholder: '搜索模型名、能力或描述',
+      sort: '排序方式',
+      recommended: '推荐排序',
+      inputPrice: '输入价格从低到高',
+      contextSort: '上下文从大到小'
+    },
+    card: {
+      input: '输入',
+      output: '输出',
+      perMillion: '/ 1M token',
+      context: '上下文',
+      cache: '缓存读取',
+      cacheWrite5m: '写入 · 5m',
+      cacheWrite1h: '写入 · 1h',
+      viewDetails: '查看详情'
+    },
+    nav: {
+      eyebrow: '模型市场',
+      market: '模型市场',
+      original: '原版广场',
+      login: '登录控制台',
+      console: '进入控制台'
+    }
+  },
+
   affiliate: {
     title: '邀请返利',
     description: '邀请新用户注册，并将返利额度转入账户余额',

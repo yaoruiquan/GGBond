@@ -36,16 +36,21 @@
             </router-link>
           </div>
 
-          <router-link
-            v-if="showModelPlazaEntry"
-            to="/model-plaza"
-            class="model-plaza-entry col-span-2 col-start-1 row-start-2 inline-flex min-h-11 items-center justify-center gap-2 justify-self-center whitespace-nowrap rounded-lg px-3 py-2 text-base font-semibold text-gray-700 hover:text-primary-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary-500 dark:text-dark-200 dark:hover:text-primary-300 sm:text-lg lg:col-span-1 lg:col-start-2 lg:row-start-1"
-            :title="t('nav.modelMarket')"
-            :aria-label="t('nav.modelMarket')"
-          >
-            <Icon name="grid" size="md" class="model-plaza-icon" />
-            <span>{{ t('nav.modelMarket') }}</span>
-          </router-link>
+          <div class="col-span-2 col-start-1 row-start-2 flex flex-wrap items-center justify-center gap-1 justify-self-center lg:col-span-1 lg:col-start-2 lg:row-start-1">
+            <router-link to="/model-market" class="model-plaza-entry inline-flex min-h-11 items-center justify-center gap-2 whitespace-nowrap rounded-lg px-3 py-2 text-base font-semibold text-gray-700 hover:text-primary-600 dark:text-dark-200 dark:hover:text-primary-300 sm:text-lg">
+              <Icon name="grid" size="md" />
+              <span>{{ t('modelMarket.title') }}</span>
+            </router-link>
+            <router-link
+              v-if="showModelPlazaEntry"
+              to="/model-plaza"
+              class="inline-flex min-h-11 items-center justify-center rounded-lg px-3 py-2 text-sm text-gray-500 hover:text-primary-600 dark:text-dark-300 dark:hover:text-primary-300"
+              :title="t('modelMarket.nav.original')"
+              :aria-label="t('modelMarket.nav.original')"
+            >
+              <span>{{ t('modelMarket.nav.original') }}</span>
+            </router-link>
+          </div>
 
           <div class="col-start-2 row-start-1 flex items-center justify-self-end gap-1 sm:gap-2 lg:col-start-3">
             <HomeContactSection v-if="contactMethods.length" :methods="contactMethods" layout="nav" />

@@ -721,6 +721,48 @@ export default {
     }
   },
 
+  modelMarket: {
+    eyebrow: 'Independent model directory',
+    title: 'Model Market',
+    description: 'Browse capabilities, context windows, and display prices by vendor and model.',
+    dataNote: 'Illustrative prices and specifications. Check the console for actual availability and billing.',
+    sample: 'Sample price',
+    resultCount: '{count} model cards',
+    empty: 'No matching models',
+    emptyHint: 'Try another vendor, model, or search term.',
+    close: 'Close details',
+    filters: {
+      title: 'Model filters',
+      vendor: 'Vendor',
+      model: 'Model',
+      allVendors: 'All vendors',
+      allModels: 'All models',
+      search: 'Search models',
+      searchPlaceholder: 'Search by name, capability, or description',
+      sort: 'Sort',
+      recommended: 'Recommended',
+      inputPrice: 'Input price: low to high',
+      contextSort: 'Context: largest first'
+    },
+    card: {
+      input: 'Input',
+      output: 'Output',
+      perMillion: '/ 1M tokens',
+      context: 'Context',
+      cache: 'Cache read',
+      cacheWrite5m: 'Write · 5m',
+      cacheWrite1h: 'Write · 1h',
+      viewDetails: 'View details'
+    },
+    nav: {
+      eyebrow: 'Model Market',
+      market: 'Model Market',
+      original: 'Original plaza',
+      login: 'Open console',
+      console: 'Open console'
+    }
+  },
+
   affiliate: {
     title: 'Affiliate Rebates',
     description: 'Invite new users and convert your rebate quota into account balance',

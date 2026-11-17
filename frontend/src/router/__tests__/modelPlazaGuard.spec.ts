@@ -76,4 +76,14 @@ describe('model plaza route guard', () => {
     const next = await visitModelPlaza({ model_plaza_enabled: false, model_plaza_require_auth: false })
     expect(next).toHaveBeenCalledWith('/home')
   })
+
+  it('keeps the independent market public when the original plaza is disabled or login-only', async () => {
+    appStore.cachedPublicSettings = { model_plaza_enabled: false, model_plaza_require_auth: true }
+    const next = vi.fn()
+    await routerHarness.guard!(
+      { path: '/model-market', fullPath: '/model-market', name: 'ModelMarket', params: {}, query: {}, meta: { requiresAuth: false } },
+      {}, next,
+    )
+    expect(next).toHaveBeenCalledWith()
+  })
 })

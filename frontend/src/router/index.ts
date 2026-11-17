@@ -185,6 +185,16 @@ const routes: RouteRecordRaw[] = [
       titleKey: 'modelPlaza.title'
     }
   },
+  {
+    path: '/model-market',
+    name: 'ModelMarket',
+    component: () => import('@/views/ModelMarketView.vue'),
+    meta: {
+      requiresAuth: false,
+      title: 'Model Market',
+      titleKey: 'modelMarket.title'
+    }
+  },
 
   // ==================== User Routes ====================
   {
