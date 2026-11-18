@@ -1,7 +1,7 @@
 # 独立模型市场开发说明
 
 - 日期：2026-11-17
-- 状态：已实现并通过本地验收；未部署
+- 状态：已部署生产 `v2026.11.18-1`；本地与生产路由验收通过
 
 ## 目标
 
@@ -75,6 +75,8 @@
 本地后端未启动，全局初始化及公开设置请求会报错；模型卡片仍能使用默认品牌和内置数据正常展示。此次验收不包含真实后端计费、真实目录或生产部署。
 
 截图保存在本地 `output/playwright/`：`model-market-desktop.png`、`model-market-mobile.png`、`model-market-dark.png`。
+
+生产部署于 2026-11-18 完成：发布源码 `db2686bce93e7eb354335a58b08724afbed986d4`，镜像 `ghcr.io/yaoruiquan/ggbond@sha256:226e71826e4f52545abfa8ecaf4bfbc69b06424a4f0a3602e2b3cb3e5b6e15ad`。CI、安全检查、镜像发布和蓝绿部署全部成功；切换至 green generation 8，完成 300 秒排空。公网 `/health`、`/home`、`/model-market` 返回 HTTP 200。部署细节记录在 [单机蓝绿部署](../../deploy/production/README.md)。
 
 ## 提交前 Review
 
