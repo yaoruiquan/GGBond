@@ -137,6 +137,32 @@ describe('independent model market', () => {
     expect(model.requestPrice).toBe(0.2)
   })
 
+  it('adds models automatically when upstream catalog discovery finishes', async () => {
+    vi.useFakeTimers()
+    try {
+      vi.mocked(getModelMarket)
+        .mockResolvedValueOnce({ description: '', groups: liveGroups.slice(0, 1), catalog_refreshing: true })
+        .mockResolvedValueOnce({ description: '', groups: liveGroups })
+      const wrapper = await mountMarket()
+      expect(wrapper.findAllComponents(ModelMarketCard)).toHaveLength(1)
+      await vi.advanceTimersByTimeAsync(1500)
+      expect(wrapper.findAllComponents(ModelMarketCard)).toHaveLength(3)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('uses the video multiplier even if the channel charges per request', () => {
+    const group = {
+      ...liveGroups[0], video_rate_independent: true, video_rate_multiplier: 3,
+      models: [{ ...liveGroups[0].models[0], media_rate: 'video' as const, pricing: { ...liveGroups[0].models[0].pricing, billing_mode: 'per_request', per_request_price: 0.5 } }]
+    }
+    const [model] = toModelMarketModels([group])
+    expect(model.multiplierKind).toBe('video')
+    expect(model.requestPrice).toBe(1.5)
+    expect(model.billingMode).toBe('per_request')
+  })
+
   it('labels video pricing by second in cards and details', async () => {
     const group = {
       ...liveGroups[0],

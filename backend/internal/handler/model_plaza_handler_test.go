@@ -91,7 +91,7 @@ func TestModelPlazaHandler_NilSettingServiceFailsClosed404(t *testing.T) {
 func TestModelPlazaHandler_ModelMarketDoesNotRequireLegacyPlazaSetting(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	h := NewModelPlazaHandler(
-		service.NewModelPlazaService(plazaVaryChannelRepo{}, plazaVaryGroupRepo{}, nil, nil, nil, nil),
+		service.NewModelPlazaService(plazaVaryChannelRepo{}, plazaVaryGroupRepo{}, nil, nil, nil, nil, nil, nil),
 		nil,
 		nil,
 	)
@@ -103,6 +103,7 @@ func TestModelPlazaHandler_ModelMarketDoesNotRequireLegacyPlazaSetting(t *testin
 
 	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
 	require.Contains(t, w.Body.String(), `"groups":[]`)
+	require.Equal(t, "private, no-store", w.Header().Get("Cache-Control"))
 }
 
 func TestToModelPlazaGroupDTO_UserRateAndFieldWhitelist(t *testing.T) {
@@ -300,7 +301,7 @@ func (plazaVaryGroupRepo) ListActive(context.Context) ([]service.Group, error) {
 func TestModelPlazaHandler_VaryKeepsCORSOrigin(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	h := NewModelPlazaHandler(
-		service.NewModelPlazaService(plazaVaryChannelRepo{}, plazaVaryGroupRepo{}, nil, nil, nil, nil),
+		service.NewModelPlazaService(plazaVaryChannelRepo{}, plazaVaryGroupRepo{}, nil, nil, nil, nil, nil, nil),
 		nil,
 		service.NewSettingService(plazaVarySettingRepo{}, &config.Config{}),
 	)

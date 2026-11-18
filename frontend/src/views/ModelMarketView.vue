@@ -78,6 +78,7 @@
       <section v-else-if="filteredModels.length" class="mt-7 grid gap-5 md:grid-cols-2 xl:grid-cols-3" data-testid="model-market-grid">
         <ModelMarketCard v-for="model in filteredModels" :key="model.id" :model="model" :vendor-name="vendorName(model.vendorId)" @select="selectedDetail = $event" />
       </section>
+      <p v-else-if="response?.catalog_refreshing && !models.length" role="status" class="mt-7 text-center text-sm text-slate-500 dark:text-dark-300">{{ t('modelMarket.loading') }}</p>
       <section v-else-if="!groupsWithoutModels.length" class="mt-7 rounded-lg border border-dashed border-slate-300 bg-white px-6 py-16 text-center dark:border-dark-700 dark:bg-dark-900">
         <p class="text-base font-semibold text-slate-700 dark:text-dark-100">{{ groups.length ? t('modelMarket.empty') : t('modelMarket.noModels') }}</p>
         <p class="mt-2 text-sm text-slate-400 dark:text-dark-500">{{ groups.length ? t('modelMarket.emptyHint') : t('modelMarket.noModelsHint') }}</p>
@@ -150,7 +151,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import PlatformIcon from '@/components/common/PlatformIcon.vue'
 import type { GroupPlatform } from '@/types'
@@ -180,13 +181,15 @@ const groupsWithoutModels = computed(() => selectedModel.value !== 'all' ? [] : 
 ))
 
 const vendorOptions = computed(() => [{ id: 'all', name: t('modelMarket.filters.allVendors'), platform: 'composite' }, ...[...new Set([...models.value.map((model) => model.vendorId), ...groups.value.filter((group) => !group.models.length).map((group) => group.platform)])].sort().map((platform) => ({ id: platform, name: platformLabel(platform), platform }))])
-const modelOptions = computed(() => [
-  { id: 'all', name: t('modelMarket.filters.allModels') },
-  ...models.value
-    .filter((model) => selectedVendor.value === 'all' || model.vendorId === selectedVendor.value)
-    .reduce<ModelMarketModel[]>((unique, model) => unique.some((item) => item.id === `${model.platform}:${model.name}`) ? unique : [...unique, { ...model, id: `${model.platform}:${model.name}` }], [])
-    .map((model) => ({ id: model.id, name: model.name }))
-])
+const modelOptions = computed(() => {
+  const options = new Map<string, string>()
+  for (const model of models.value) {
+    if (selectedVendor.value === 'all' || model.vendorId === selectedVendor.value) {
+      options.set(`${model.platform}:${model.name}`, model.name)
+    }
+  }
+  return [{ id: 'all', name: t('modelMarket.filters.allModels') }, ...Array.from(options, ([id, name]) => ({ id, name }))]
+})
 
 const filteredModels = computed(() => {
   const visibleModels = models.value.filter((model) => {
@@ -226,13 +229,32 @@ function requestUnit(billingMode: string) {
 
 function formatMultiplier(value: number) { return Number(value.toPrecision(8)).toString() }
 
-onMounted(async () => {
+let catalogRefreshTimer: ReturnType<typeof setTimeout> | undefined
+const catalogRequest = new AbortController()
+
+async function loadCatalog() {
   try {
-    response.value = await getModelMarket()
+    const catalog = await getModelMarket({ signal: catalogRequest.signal })
+    if (catalogRequest.signal.aborted) return
+    response.value = catalog
+    if (catalog.catalog_refreshing) {
+      catalogRefreshTimer = setTimeout(loadCatalog, 1500)
+    }
   } catch {
-    loadFailed.value = true
+    if (catalogRequest.signal.aborted) return
+    if (response.value) {
+      response.value = { ...response.value, catalog_refreshing: false }
+    } else {
+      loadFailed.value = true
+    }
   } finally {
     loading.value = false
   }
+}
+
+onMounted(loadCatalog)
+onUnmounted(() => {
+  catalogRequest.abort()
+  clearTimeout(catalogRefreshTimer)
 })
 </script>

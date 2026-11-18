@@ -69,6 +69,7 @@ type modelPlazaModel struct {
 	Platform        string                     `json:"platform"`
 	Pricing         *userSupportedModelPricing `json:"pricing"`
 	OfficialPricing *modelPlazaOfficialPricing `json:"official_pricing"`
+	MediaRate       string                     `json:"media_rate,omitempty"`
 	// LongContextBasis 多档时的计价基准："whole_request"（整单按档）| "marginal"（仅超出部分）。
 	LongContextBasis string `json:"long_context_basis,omitempty"`
 	// TimePricing 分时倍率时段，落在时段内的请求整单乘倍率；无分时省略。
@@ -102,8 +103,9 @@ type modelPlazaGroup struct {
 
 // modelPlazaResponse 广场页响应。
 type modelPlazaResponse struct {
-	Description string            `json:"description"`
-	Groups      []modelPlazaGroup `json:"groups"`
+	Description       string            `json:"description"`
+	Groups            []modelPlazaGroup `json:"groups"`
+	CatalogRefreshing bool              `json:"catalog_refreshing,omitempty"`
 }
 
 // Get 返回模型广场数据。
@@ -118,25 +120,23 @@ func (h *ModelPlazaHandler) Get(c *gin.Context) {
 		response.NotFound(c, "Model plaza is not enabled")
 		return
 	}
-	h.getVisibleGroups(c, rt.Description, rt.RequireAuth, h.plazaService.ListGroups)
+	h.getVisibleGroups(c, rt.Description, rt.RequireAuth, func(ctx context.Context, _ func(int64, bool) bool) ([]service.PlazaGroup, bool, error) {
+		groups, err := h.plazaService.ListGroups(ctx)
+		return groups, false, err
+	})
 }
 
 // GetMarket returns the independent catalog, including account model mappings,
 // without depending on the legacy model-plaza feature switch.
 func (h *ModelPlazaHandler) GetMarket(c *gin.Context) {
+	c.Header("Cache-Control", "private, no-store")
 	h.getVisibleGroups(c, "", false, h.plazaService.ListMarketGroups)
 }
 
-func (h *ModelPlazaHandler) getVisibleGroups(c *gin.Context, description string, requireAuth bool, listGroups func(context.Context) ([]service.PlazaGroup, error)) {
+func (h *ModelPlazaHandler) getVisibleGroups(c *gin.Context, description string, requireAuth bool, listGroups func(context.Context, func(int64, bool) bool) ([]service.PlazaGroup, bool, error)) {
 	subject, authed := middleware.GetAuthSubjectFromContext(c)
 	if requireAuth && !authed {
 		response.Unauthorized(c, "Authentication required")
-		return
-	}
-
-	groups, err := listGroups(c.Request.Context())
-	if err != nil {
-		response.ErrorFrom(c, err)
 		return
 	}
 
@@ -144,6 +144,7 @@ func (h *ModelPlazaHandler) getVisibleGroups(c *gin.Context, description string,
 	var allowedGroups map[int64]struct{}
 	var restrictPublicGroups bool
 	var userRates map[int64]float64
+	var err error
 	if authed {
 		allowedGroups, restrictPublicGroups, err = h.apiKeyService.GetUserGroupVisibility(c.Request.Context(), subject.UserID)
 		if err != nil {
@@ -159,6 +160,13 @@ func (h *ModelPlazaHandler) getVisibleGroups(c *gin.Context, description string,
 		}
 	}
 
+	groups, refreshing, err := listGroups(c.Request.Context(), func(id int64, exclusive bool) bool {
+		return plazaGroupVisible(id, exclusive, allowedGroups, restrictPublicGroups)
+	})
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
 	visible := filterPlazaVisibleGroups(groups, allowedGroups, restrictPublicGroups)
 
 	// 广场可匿名访问，分组文案随请求语言变化，提示中间缓存按语言区分。
@@ -166,8 +174,9 @@ func (h *ModelPlazaHandler) getVisibleGroups(c *gin.Context, description string,
 	c.Writer.Header().Add("Vary", "Accept-Language")
 	out := toLocalizedModelPlazaGroups(visible, userRates, c.GetHeader("Accept-Language"))
 	response.Success(c, modelPlazaResponse{
-		Description: description,
-		Groups:      out,
+		Description:       description,
+		Groups:            out,
+		CatalogRefreshing: refreshing,
 	})
 }
 
@@ -182,17 +191,19 @@ func filterPlazaVisibleGroups(
 ) []service.PlazaGroup {
 	visible := make([]service.PlazaGroup, 0, len(groups))
 	for _, g := range groups {
-		if g.IsExclusive || (restrictPublicGroups && allowedGroups != nil) {
-			if allowedGroups == nil {
-				continue
-			}
-			if _, ok := allowedGroups[g.ID]; !ok {
-				continue
-			}
+		if plazaGroupVisible(g.ID, g.IsExclusive, allowedGroups, restrictPublicGroups) {
+			visible = append(visible, g)
 		}
-		visible = append(visible, g)
 	}
 	return visible
+}
+
+func plazaGroupVisible(id int64, exclusive bool, allowedGroups map[int64]struct{}, restrictPublic bool) bool {
+	if !exclusive && (!restrictPublic || allowedGroups == nil) {
+		return true
+	}
+	_, allowed := allowedGroups[id]
+	return allowed
 }
 
 // toLocalizedModelPlazaGroups 转换可见分组，并把名称与描述换成请求首选语言的版本。
@@ -216,6 +227,7 @@ func toModelPlazaGroupDTO(g *service.PlazaGroup, userRates map[int64]float64) mo
 			Platform:         m.Platform,
 			Pricing:          toUserPricing(m.Pricing),
 			OfficialPricing:  toModelPlazaOfficialPricing(m.OfficialPricing),
+			MediaRate:        string(m.MediaRate),
 			LongContextBasis: string(m.LongContextBasis),
 			TimePricing:      toModelPlazaTimePricing(m.TimePricing),
 		})

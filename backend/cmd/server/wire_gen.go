@@ -316,7 +316,7 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	handlerPaymentHandler := handler.NewPaymentHandler(paymentService, paymentConfigService)
 	paymentWebhookHandler := handler.NewPaymentWebhookHandler(paymentService, registry)
 	availableChannelHandler := handler.NewAvailableChannelHandler(channelService, apiKeyService, settingService)
-	modelPlazaService := service.NewModelPlazaService(channelRepository, groupRepository, accountRepository, pricingService, billingService, modelPricingResolver)
+	modelPlazaService := service.NewModelPlazaService(channelRepository, groupRepository, accountRepository, pricingService, billingService, modelPricingResolver, compositeModelRouteRepository, accountTestService)
 	modelPlazaHandler := handler.NewModelPlazaHandler(modelPlazaService, apiKeyService, settingService)
 	imageTaskStore := repository.NewImageTaskStore(redisClient)
 	imageTaskService := service.ProvideImageTaskService(imageTaskStore, imageStorageSettingService)

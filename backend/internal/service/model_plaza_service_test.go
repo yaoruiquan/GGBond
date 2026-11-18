@@ -16,7 +16,7 @@ func newPlazaService(channels []Channel, groups []Group, pricing *PricingService
 	repo := &mockChannelRepository{
 		listAllFn: func(ctx context.Context) ([]Channel, error) { return channels, nil },
 	}
-	return NewModelPlazaService(repo, &stubGroupRepoForAvailable{activeGroups: groups}, nil, pricing, nil, nil)
+	return NewModelPlazaService(repo, &stubGroupRepoForAvailable{activeGroups: groups}, nil, pricing, nil, nil, nil, nil)
 }
 
 func plazaPricedChannel(id int64, name string, groupIDs []int64, platform string, models ...string) Channel {
@@ -403,7 +403,7 @@ func TestListPlazaGroups_RepoErrorsPropagate(t *testing.T) {
 	repo := &mockChannelRepository{
 		listAllFn: func(ctx context.Context) ([]Channel, error) { return nil, sentinel },
 	}
-	svc := NewModelPlazaService(repo, &stubGroupRepoForAvailable{}, nil, nil, nil, nil)
+	svc := NewModelPlazaService(repo, &stubGroupRepoForAvailable{}, nil, nil, nil, nil, nil, nil)
 	out, err := svc.ListGroups(context.Background())
 	require.Nil(t, out)
 	require.ErrorIs(t, err, sentinel)
@@ -411,7 +411,7 @@ func TestListPlazaGroups_RepoErrorsPropagate(t *testing.T) {
 	svc2 := NewModelPlazaService(
 		&mockChannelRepository{listAllFn: func(ctx context.Context) ([]Channel, error) { return nil, nil }},
 		&stubGroupRepoForAvailable{listActiveErr: sentinel},
-		nil, nil, nil, nil,
+		nil, nil, nil, nil, nil, nil,
 	)
 	out2, err2 := svc2.ListGroups(context.Background())
 	require.Nil(t, out2)
@@ -428,7 +428,7 @@ func newPlazaServiceWithBilling(channels []Channel, groups []Group, groupPlatfor
 	}
 	cs := NewChannelService(repo, nil, nil, nil, nil)
 	bs := NewBillingService(&config.Config{}, catalog)
-	return NewModelPlazaService(repo, &stubGroupRepoForAvailable{activeGroups: groups}, nil, catalog, bs, NewModelPricingResolver(cs, bs))
+	return NewModelPlazaService(repo, &stubGroupRepoForAvailable{activeGroups: groups}, nil, catalog, bs, NewModelPricingResolver(cs, bs), nil, nil)
 }
 
 func plazaModelsByName(models []PlazaModel) map[string]PlazaModel {
@@ -610,7 +610,7 @@ func TestListMarketGroups_FromBoundAccountsWithoutChannels(t *testing.T) {
 		{Platform: PlatformGrok, GroupIDs: []int64{3}},
 	}}
 
-	out, err := svc.ListMarketGroups(context.Background())
+	out, _, err := svc.ListMarketGroups(context.Background(), nil)
 	require.NoError(t, err)
 	require.Len(t, out, 3)
 	require.Equal(t, int64(1), out[0].ID)
@@ -618,7 +618,7 @@ func TestListMarketGroups_FromBoundAccountsWithoutChannels(t *testing.T) {
 	require.Equal(t, "claude-configured", out[0].Models[0].Name)
 	require.Equal(t, 0.25, *out[0].Models[0].Pricing.PerRequestPrice)
 	require.Equal(t, "market-alias", out[0].Models[1].Name)
-	require.Nil(t, out[0].Models[1].Pricing)
+	require.Equal(t, 0.25, *out[0].Models[1].Pricing.PerRequestPrice)
 	require.Empty(t, out[1].Models)
 	require.NotEmpty(t, out[2].Models)
 	for _, model := range out[2].Models {
@@ -635,20 +635,141 @@ func TestListMarketGroups_AccountReadFailureIsNotAnEmptyCatalog(t *testing.T) {
 	svc := newPlazaService(nil, []Group{{ID: 1, Platform: PlatformAnthropic}}, nil)
 	readErr := errors.New("account lookup failed")
 	svc.accountRepo = marketAccountRepo{err: readErr}
-	_, err := svc.ListMarketGroups(context.Background())
+	_, _, err := svc.ListMarketGroups(context.Background(), nil)
 	require.ErrorIs(t, err, readErr)
 }
 
 func TestListMarketGroups_RespectsChannelCatalogRestriction(t *testing.T) {
-	channel := plazaPricedChannel(1, "restricted", []int64{1}, PlatformAnthropic, "claude-priced")
+	channel := plazaPricedChannel(1, "restricted", []int64{1, 2}, PlatformAnthropic, "claude-priced", "claude-without-account")
+	channel.RestrictModels = true
+	channel.BillingModelSource = BillingModelSourceUpstream
+	svc := newPlazaService([]Channel{channel}, []Group{
+		{ID: 1, Name: "configured", Platform: PlatformAnthropic},
+		{ID: 2, Name: "empty", Platform: PlatformAnthropic},
+	}, nil)
+	svc.accountRepo = marketAccountRepo{accounts: []Account{
+		{Platform: PlatformAnthropic, GroupIDs: []int64{1}, Credentials: map[string]any{"model_mapping": map[string]any{
+			"claude-account-only": "claude-account-only", "claude-alias": "claude-priced",
+		}}},
+	}}
+	out, _, err := svc.ListMarketGroups(context.Background(), nil)
+	require.NoError(t, err)
+	require.Len(t, out, 2)
+	require.Len(t, out[0].Models, 1)
+	require.Equal(t, "claude-alias", out[0].Models[0].Name)
+	require.Equal(t, 3e-6, *out[0].Models[0].Pricing.InputPrice)
+	require.Empty(t, out[1].Models)
+}
+
+func TestListMarketGroups_EnumeratesExactAllowlistAndEffectiveMappings(t *testing.T) {
+	svc := newPlazaService(nil, []Group{
+		{ID: 1, Name: "allowlist", Platform: PlatformAnthropic, ModelAllowlist: GroupModelAllowlist{Enabled: true, Models: []string{"claude-approved", "unsupported"}}},
+		{ID: 2, Name: "antigravity", Platform: PlatformAntigravity},
+	}, nil)
+	svc.accountRepo = marketAccountRepo{accounts: []Account{
+		{ID: 1, Platform: PlatformAnthropic, GroupIDs: []int64{1}, Credentials: map[string]any{"model_mapping": map[string]any{"claude-*": "claude-native"}}},
+		{ID: 2, Platform: PlatformAntigravity, GroupIDs: []int64{2}},
+	}}
+	out, _, err := svc.ListMarketGroups(context.Background(), nil)
+	require.NoError(t, err)
+	require.Len(t, out[0].Models, 1)
+	require.Equal(t, "claude-approved", out[0].Models[0].Name)
+	require.NotEmpty(t, out[1].Models)
+}
+
+func TestListMarketGroups_PublicCompositeModelsUseWinningRouteAndBoundAccount(t *testing.T) {
+	svc := newPlazaService(nil, []Group{{ID: 1, Platform: PlatformComposite, ModelAllowlist: GroupModelAllowlist{
+		Enabled: true, Models: []string{"public-*"},
+	}}}, nil)
+	svc.accountRepo = marketAccountRepo{accounts: []Account{
+		{ID: 1, Platform: PlatformAnthropic, GroupIDs: []int64{1}, Credentials: map[string]any{"model_mapping": map[string]any{"claude-configured": "claude-configured"}}},
+	}}
+	route := func(id int64, public, upstream, endpoint string, priority int, enabled bool) CompositeModelRoute {
+		return CompositeModelRoute{ID: id, GroupID: 1, PublicModel: public, UpstreamModel: upstream, Endpoint: endpoint,
+			TargetPlatform: PlatformAnthropic, MatchType: CompositeRouteMatchExact, Priority: priority, Enabled: enabled}
+	}
+	svc.compositeRoutes = &compositeRouteRepoStub{routes: []CompositeModelRoute{
+		route(1, "public-available", "claude-configured", CompositeRouteEndpointMessages, 10, true),
+		route(2, "public-available", "unavailable", CompositeRouteEndpointMessages, 0, false),
+		route(3, "public-shadowed", "claude-configured", CompositeRouteEndpointMessages, 10, true),
+		route(4, "public-shadowed", "unavailable", CompositeRouteEndpointMessages, 1, true),
+		route(5, "public-disabled", "claude-configured", CompositeRouteEndpointAny, 0, false),
+		route(6, "blocked-by-allowlist", "claude-configured", CompositeRouteEndpointAny, 0, true),
+	}}
+	out, _, err := svc.ListMarketGroups(context.Background(), nil)
+	require.NoError(t, err)
+	require.Len(t, out[0].Models, 1)
+	require.Equal(t, "public-available", out[0].Models[0].Name)
+	require.Equal(t, PlatformAnthropic, out[0].Models[0].Platform)
+	require.Nil(t, out[0].Models[0].Pricing)
+}
+
+func TestListMarketGroups_DiscoversPassthroughCatalogAndCachesOnlyVisibleAccounts(t *testing.T) {
+	svc := newPlazaService(nil, []Group{
+		{ID: 1, Platform: PlatformOpenAI},
+		{ID: 2, Platform: PlatformOpenAI, IsExclusive: true},
+	}, nil)
+	accounts := []Account{
+		{ID: 1, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, GroupIDs: []int64{1},
+			Credentials: map[string]any{"model_mapping": map[string]any{"obsolete-model": "obsolete-model"}},
+			Extra:       map[string]any{"openai_passthrough": true}},
+		{ID: 2, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, GroupIDs: []int64{2}},
+	}
+	svc.accountRepo = marketAccountRepo{accounts: accounts}
+	fetched := make(chan int64, 4)
+	svc.marketDiscovery = newMarketDiscovery(func(_ context.Context, account *Account) ([]string, error) {
+		fetched <- account.ID
+		return []string{"confirmed-upstream-model"}, nil
+	})
+	for range 2 {
+		out, _, err := svc.ListMarketGroups(context.Background(), func(_ int64, exclusive bool) bool { return !exclusive })
+		require.NoError(t, err)
+		require.Len(t, out, 1)
+		require.Len(t, out[0].Models, 1)
+		require.Equal(t, "confirmed-upstream-model", out[0].Models[0].Name)
+	}
+	require.Len(t, fetched, 1)
+	require.Equal(t, int64(1), <-fetched)
+}
+
+func TestListMarketGroups_WildcardPricingAndDiscovery(t *testing.T) {
+	channel := plazaPricedChannel(1, "wildcard rates", []int64{1}, PlatformAnthropic, "claude-*")
 	channel.RestrictModels = true
 	svc := newPlazaService([]Channel{channel}, []Group{{ID: 1, Platform: PlatformAnthropic}}, nil)
 	svc.accountRepo = marketAccountRepo{accounts: []Account{
-		{Platform: PlatformAnthropic, GroupIDs: []int64{1}, Credentials: map[string]any{"model_mapping": map[string]any{"claude-account-only": "claude-account-only"}}},
+		{ID: 1, Platform: PlatformAnthropic, Type: AccountTypeAPIKey, GroupIDs: []int64{1}, Credentials: map[string]any{"model_mapping": map[string]any{
+			"claude-configured": "claude-configured", "claude-*": "claude-native",
+		}}},
 	}}
-	out, err := svc.ListMarketGroups(context.Background())
+	svc.marketDiscovery = newMarketDiscovery(func(_ context.Context, _ *Account) ([]string, error) {
+		return []string{"claude-discovered", "unrelated-model"}, nil
+	})
+	out, _, err := svc.ListMarketGroups(context.Background(), nil)
 	require.NoError(t, err)
-	require.Len(t, out, 1)
-	require.Len(t, out[0].Models, 1)
-	require.Equal(t, "claude-priced", out[0].Models[0].Name)
+	require.Len(t, out[0].Models, 2)
+	require.Equal(t, "claude-configured", out[0].Models[0].Name)
+	require.Equal(t, "claude-discovered", out[0].Models[1].Name)
+	require.Equal(t, 3e-6, *out[0].Models[1].Pricing.InputPrice)
+}
+
+func TestListMarketGroups_GrokMediaUsesUsageBilling(t *testing.T) {
+	groups := []Group{{ID: 1, Platform: PlatformGrok, RateMultiplier: 2, VideoRateIndependent: true, VideoRateMultiplier: 3,
+		VideoPrice720P: testPtrFloat64(0.2)}}
+	svc := newPlazaServiceWithBilling(nil, groups, nil, nil)
+	svc.accountRepo = marketAccountRepo{accounts: []Account{{ID: 1, Platform: PlatformGrok, GroupIDs: []int64{1}}}}
+	out, _, err := svc.ListMarketGroups(context.Background(), nil)
+	require.NoError(t, err)
+	prices := make(map[string]*ChannelModelPricing)
+	for _, model := range out[0].Models {
+		prices[model.Name] = model.Pricing
+	}
+	image := prices["grok-imagine-image"]
+	require.NotNil(t, image)
+	require.Equal(t, BillingModeImage, image.BillingMode)
+	require.Equal(t, 0.02, *image.PerRequestPrice)
+	video := prices["grok-imagine-video"]
+	require.NotNil(t, video)
+	require.Equal(t, BillingModeVideo, video.BillingMode)
+	require.Equal(t, "720p", video.Intervals[1].TierLabel)
+	require.Equal(t, 0.2, *video.Intervals[1].PerRequestPrice)
 }

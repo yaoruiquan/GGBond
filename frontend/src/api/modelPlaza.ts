@@ -49,6 +49,7 @@ export interface PlazaModel {
   /** 实收口径的展示定价：档位可提供绝对单价或相对基础价倍率；均为标准时段价。 */
   pricing: UserSupportedModelPricing | null
   official_pricing: PlazaOfficialPricing | null
+  media_rate?: 'image' | 'video'
   /** 仅多档模型返回。 */
   long_context_basis?: PlazaLongContextBasis
   /** 仅配置了分时倍率的模型返回。 */
@@ -85,6 +86,7 @@ export interface ModelPlazaResponse {
   /** 管理员配置的全局价格说明（Markdown）。 */
   description: string
   groups: ModelPlazaGroup[]
+  catalog_refreshing?: boolean
 }
 
 /** 获取模型广场数据。开关未启用时后端返回 404。 */

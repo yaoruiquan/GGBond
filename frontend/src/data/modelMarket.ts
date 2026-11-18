@@ -40,7 +40,7 @@ export type ModelMarketModel = {
 }
 
 function multiplierInfo(group: ModelPlazaGroup, model: PlazaModel): Pick<ModelMarketModel, 'multiplier' | 'multiplierKind'> {
-  const mode = model.pricing?.billing_mode
+  const mode = model.media_rate ?? model.pricing?.billing_mode
   if (mode === BILLING_MODE_IMAGE && group.image_rate_independent) return { multiplier: group.image_rate_multiplier, multiplierKind: 'image' }
   if (mode === BILLING_MODE_VIDEO && group.video_rate_independent) return { multiplier: group.video_rate_multiplier, multiplierKind: 'video' }
   return { multiplier: group.user_rate_multiplier ?? group.rate_multiplier, multiplierKind: 'group' }
