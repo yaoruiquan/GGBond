@@ -67,6 +67,20 @@ describe('independent model market', () => {
     expect(wrapper.findAllComponents(ModelMarketCard)).toHaveLength(2)
   })
 
+  it('keeps a group visible when it does not have a concrete model list', async () => {
+    vi.mocked(getModelMarket).mockResolvedValueOnce({
+      description: '',
+      groups: [...liveGroups, { ...liveGroups[2], id: 4, name: 'Gemini 接入组', platform: 'gemini', models: [] }]
+    })
+    const wrapper = await mountMarket()
+    expect(wrapper.findAllComponents(ModelMarketCard)).toHaveLength(3)
+    expect(wrapper.text()).toContain('Gemini 接入组')
+    await button(wrapper, 'Gemini').trigger('click')
+    expect(wrapper.findAllComponents(ModelMarketCard)).toHaveLength(0)
+    expect(wrapper.text()).toContain('Gemini 接入组')
+    expect(wrapper.text()).toContain('×0.8')
+  })
+
   it('searches actual group/model names and sorts numeric live prices', async () => {
     const wrapper = await mountMarket()
     const search = wrapper.get('input[type="search"]')

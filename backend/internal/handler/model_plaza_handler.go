@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"log/slog"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
@@ -117,24 +118,23 @@ func (h *ModelPlazaHandler) Get(c *gin.Context) {
 		response.NotFound(c, "Model plaza is not enabled")
 		return
 	}
-	h.getVisibleGroups(c, rt.Description, rt.RequireAuth)
+	h.getVisibleGroups(c, rt.Description, rt.RequireAuth, h.plazaService.ListGroups)
 }
 
-// GetMarket returns the same live group/model/pricing data for the independent
-// model market without depending on the legacy model-plaza feature switch.
+// GetMarket returns the independent catalog, including account model mappings,
+// without depending on the legacy model-plaza feature switch.
 func (h *ModelPlazaHandler) GetMarket(c *gin.Context) {
-	h.getVisibleGroups(c, "", false)
+	h.getVisibleGroups(c, "", false, h.plazaService.ListMarketGroups)
 }
 
-func (h *ModelPlazaHandler) getVisibleGroups(c *gin.Context, description string, requireAuth bool) {
-
+func (h *ModelPlazaHandler) getVisibleGroups(c *gin.Context, description string, requireAuth bool, listGroups func(context.Context) ([]service.PlazaGroup, error)) {
 	subject, authed := middleware.GetAuthSubjectFromContext(c)
 	if requireAuth && !authed {
 		response.Unauthorized(c, "Authentication required")
 		return
 	}
 
-	groups, err := h.plazaService.ListGroups(c.Request.Context())
+	groups, err := listGroups(c.Request.Context())
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return

@@ -49,11 +49,13 @@
       </div>
     </div>
 
-    <div v-else class="mt-5 border-t border-slate-200 pt-4 dark:border-dark-700">
+    <div v-else-if="model.billingMode !== 'unknown'" class="mt-5 border-t border-slate-200 pt-4 dark:border-dark-700">
       <p class="text-xs font-medium text-slate-500 dark:text-dark-400">{{ t('modelMarket.card.perRequest') }}</p>
       <p class="mt-2 font-mono text-xl font-semibold text-emerald-700 dark:text-emerald-300">{{ formatPrice(model.requestPrice, false) }}</p>
       <p class="mt-1 text-xs text-slate-400 dark:text-dark-500">{{ requestUnit }}</p>
     </div>
+
+    <p v-else class="mt-5 border-t border-slate-200 pt-4 text-sm text-slate-500 dark:border-dark-700 dark:text-dark-300">{{ t('modelMarket.quoteUnavailable') }}</p>
 
     <div v-if="model.billingMode === 'token' && (model.cacheWrite5mPrice != null || model.cacheWrite1hPrice != null || model.cacheReadPrice != null)" class="my-5 grid grid-cols-3 divide-x divide-slate-200 text-xs dark:divide-dark-700">
       <div><p class="text-slate-400 dark:text-dark-500">{{ t('modelMarket.card.cacheWrite5m') }}</p><p class="mt-2 font-mono font-semibold">{{ formatPrice(model.cacheWrite5mPrice, true) }}</p></div>

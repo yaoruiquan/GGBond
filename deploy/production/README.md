@@ -11,7 +11,7 @@
 - 应用源码：`fdac304e305a623c4b018af742a345d323f1ea4e`；GitHub Actions run：`44261206717`，CI、安全检查、镜像发布和生产部署均成功。
 - 生产镜像：`ghcr.io/yaoruiquan/ggbond@sha256:809a2bcdb76c0501a0f901b8607a4829e8d94c3eba12d03b98951c2e83f28a1f`，OCI revision 与源码 SHA 一致。
 - 2026-11-18 16:07（北京时间）切换至 `blue`，状态 generation `9`，route token 为 `blue-7e6d4c6d2b51f8637b4b031174a1b15e`；新路由健康后等待 300 秒排空，再停止旧色。
-- 公网 `/health`、`/model-market`、`/api/v1/model-market` 均返回 200。API 当前返回 `groups: []`，生产实例暂无可见模型分组；页面会显示真实空状态，不补入演示数据。
+- 公网 `/health`、`/model-market`、`/api/v1/model-market` 均返回 200。此版本的 API 返回 `groups: []`。后续只读核查确认生产有 12 个启用的非专属分组；该版本仅从渠道枚举模型，唯一的活跃渠道未配置模型映射或价格条目，因此目录为空。
 - 市场从可见分组读取模型及本站价格，按实际分组/个人/媒体倍率展示；视频按次价格单位显示为按秒。无数据库迁移。
 
 ### `v2026.11.18-1` 独立模型市场

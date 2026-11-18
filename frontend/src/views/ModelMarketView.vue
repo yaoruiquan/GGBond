@@ -78,9 +78,22 @@
       <section v-else-if="filteredModels.length" class="mt-7 grid gap-5 md:grid-cols-2 xl:grid-cols-3" data-testid="model-market-grid">
         <ModelMarketCard v-for="model in filteredModels" :key="model.id" :model="model" :vendor-name="vendorName(model.vendorId)" @select="selectedDetail = $event" />
       </section>
-      <section v-else class="mt-7 rounded-lg border border-dashed border-slate-300 bg-white px-6 py-16 text-center dark:border-dark-700 dark:bg-dark-900">
-        <p class="text-base font-semibold text-slate-700 dark:text-dark-100">{{ models.length ? t('modelMarket.empty') : t('modelMarket.noModels') }}</p>
-        <p class="mt-2 text-sm text-slate-400 dark:text-dark-500">{{ models.length ? t('modelMarket.emptyHint') : t('modelMarket.noModelsHint') }}</p>
+      <section v-else-if="!groupsWithoutModels.length" class="mt-7 rounded-lg border border-dashed border-slate-300 bg-white px-6 py-16 text-center dark:border-dark-700 dark:bg-dark-900">
+        <p class="text-base font-semibold text-slate-700 dark:text-dark-100">{{ groups.length ? t('modelMarket.empty') : t('modelMarket.noModels') }}</p>
+        <p class="mt-2 text-sm text-slate-400 dark:text-dark-500">{{ groups.length ? t('modelMarket.emptyHint') : t('modelMarket.noModelsHint') }}</p>
+      </section>
+      <section v-if="groupsWithoutModels.length" class="mt-7 space-y-3" :aria-label="t('modelMarket.groupsWithoutModels')">
+        <h2 class="text-sm font-semibold text-slate-700 dark:text-dark-100">{{ t('modelMarket.groupsWithoutModels') }}</h2>
+        <ul class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          <li v-for="group in groupsWithoutModels" :key="group.id" class="flex items-start justify-between gap-4 rounded-lg border border-slate-200 bg-white p-4 dark:border-dark-700 dark:bg-dark-900">
+            <div>
+              <p class="text-xs text-slate-500 dark:text-dark-400">{{ vendorName(group.platform) }}</p>
+              <p class="mt-1 font-semibold">{{ group.name }}</p>
+              <p class="mt-1 text-sm text-slate-500 dark:text-dark-300">{{ group.description }}</p>
+            </div>
+            <span class="shrink-0 rounded-md bg-amber-50 px-2 py-1 text-sm font-semibold text-amber-900 dark:bg-amber-950/30 dark:text-amber-200">{{ t('modelMarket.card.multiplierKind.group') }} ×{{ formatMultiplier(group.user_rate_multiplier ?? group.rate_multiplier) }}</span>
+          </li>
+        </ul>
       </section>
     </main>
 
@@ -123,11 +136,12 @@
             </template>
             <div v-if="selectedDetail.billingMode === 'token' && selectedDetail.priceTiers.length <= 1" class="flex justify-between py-3"><dt>{{ t('modelMarket.card.input') }}</dt><dd class="font-mono">{{ formatPrice(selectedDetail.inputPrice, true) }}</dd></div>
             <div v-if="selectedDetail.billingMode === 'token' && selectedDetail.priceTiers.length <= 1" class="flex justify-between py-3"><dt>{{ t('modelMarket.card.output') }}</dt><dd class="font-mono">{{ formatPrice(selectedDetail.outputPrice, true) }}</dd></div>
-            <div v-if="selectedDetail.billingMode !== 'token' && selectedDetail.priceTiers.length <= 1" class="flex justify-between gap-4 py-3"><dt>{{ t('modelMarket.card.perRequest') }}</dt><dd class="text-right font-mono">{{ formatPrice(selectedDetail.requestPrice, false) }} <span class="font-sans text-xs text-slate-500">{{ requestUnit(selectedDetail.billingMode) }}</span></dd></div>
+            <div v-if="selectedDetail.billingMode !== 'token' && selectedDetail.billingMode !== 'unknown' && selectedDetail.priceTiers.length <= 1" class="flex justify-between gap-4 py-3"><dt>{{ t('modelMarket.card.perRequest') }}</dt><dd class="text-right font-mono">{{ formatPrice(selectedDetail.requestPrice, false) }} <span class="font-sans text-xs text-slate-500">{{ requestUnit(selectedDetail.billingMode) }}</span></dd></div>
             <div v-if="selectedDetail.billingMode === 'token' && selectedDetail.priceTiers.length <= 1" class="flex justify-between py-3"><dt>{{ t('modelMarket.card.cacheWrite5m') }}</dt><dd class="font-mono">{{ formatPrice(selectedDetail.cacheWrite5mPrice, true) }}</dd></div>
             <div v-if="selectedDetail.billingMode === 'token' && selectedDetail.priceTiers.length <= 1" class="flex justify-between py-3"><dt>{{ t('modelMarket.card.cacheWrite1h') }}</dt><dd class="font-mono">{{ formatPrice(selectedDetail.cacheWrite1hPrice, true) }}</dd></div>
             <div v-if="selectedDetail.billingMode === 'token' && selectedDetail.priceTiers.length <= 1" class="flex justify-between py-3"><dt>{{ t('modelMarket.card.cache') }}</dt><dd class="font-mono">{{ formatPrice(selectedDetail.cacheReadPrice, true) }}</dd></div>
           </dl>
+          <p v-if="selectedDetail.billingMode === 'unknown'" class="py-3 text-sm text-slate-500 dark:text-dark-300">{{ t('modelMarket.quoteUnavailable') }}</p>
         </div>
         <p class="mt-6 text-xs leading-6 text-slate-500 dark:text-dark-400">{{ t('modelMarket.multiplierNote') }}</p>
       </div>
@@ -156,9 +170,16 @@ const selectedDetail = ref<ModelMarketModel | null>(null)
 const response = ref<ModelPlazaResponse | null>(null)
 const loading = ref(true)
 const loadFailed = ref(false)
-const models = computed(() => toModelMarketModels(response.value?.groups ?? []))
+const groups = computed(() => response.value?.groups ?? [])
+const models = computed(() => toModelMarketModels(groups.value))
+const query = computed(() => searchQuery.value.trim().toLocaleLowerCase())
+const groupsWithoutModels = computed(() => selectedModel.value !== 'all' ? [] : groups.value.filter((group) =>
+  group.models.length === 0 &&
+  (selectedVendor.value === 'all' || group.platform === selectedVendor.value) &&
+  (!query.value || `${group.name} ${group.description} ${vendorName(group.platform)}`.toLocaleLowerCase().includes(query.value))
+))
 
-const vendorOptions = computed(() => [{ id: 'all', name: t('modelMarket.filters.allVendors'), platform: 'composite' }, ...[...new Set(models.value.map((model) => model.vendorId))].sort().map((platform) => ({ id: platform, name: platformLabel(platform), platform }))])
+const vendorOptions = computed(() => [{ id: 'all', name: t('modelMarket.filters.allVendors'), platform: 'composite' }, ...[...new Set([...models.value.map((model) => model.vendorId), ...groups.value.filter((group) => !group.models.length).map((group) => group.platform)])].sort().map((platform) => ({ id: platform, name: platformLabel(platform), platform }))])
 const modelOptions = computed(() => [
   { id: 'all', name: t('modelMarket.filters.allModels') },
   ...models.value
@@ -168,11 +189,10 @@ const modelOptions = computed(() => [
 ])
 
 const filteredModels = computed(() => {
-  const query = searchQuery.value.trim().toLocaleLowerCase()
   const visibleModels = models.value.filter((model) => {
     const vendorMatch = selectedVendor.value === 'all' || model.vendorId === selectedVendor.value
     const modelMatch = selectedModel.value === 'all' || `${model.platform}:${model.name}` === selectedModel.value
-    const queryMatch = !query || `${model.name} ${vendorName(model.vendorId)} ${model.description} ${model.groupName}`.toLocaleLowerCase().includes(query)
+    const queryMatch = !query.value || `${model.name} ${vendorName(model.vendorId)} ${model.description} ${model.groupName}`.toLocaleLowerCase().includes(query.value)
     return vendorMatch && modelMatch && queryMatch
   })
 

@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+
+	"github.com/Wei-Shaw/sub2api/internal/domain"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/xai"
 )
 
 // PlazaOfficialPricing 模型广场展示用的官方参考价（USD per token），与计费同源：
@@ -68,6 +71,7 @@ type PlazaGroup struct {
 type ModelPlazaService struct {
 	channelRepo    ChannelRepository
 	groupRepo      GroupRepository
+	accountRepo    AccountRepository
 	pricingService *PricingService
 	billingService *BillingService
 	resolver       *ModelPricingResolver
@@ -77,6 +81,7 @@ type ModelPlazaService struct {
 func NewModelPlazaService(
 	channelRepo ChannelRepository,
 	groupRepo GroupRepository,
+	accountRepo AccountRepository,
 	pricingService *PricingService,
 	billingService *BillingService,
 	resolver *ModelPricingResolver,
@@ -84,6 +89,7 @@ func NewModelPlazaService(
 	return &ModelPlazaService{
 		channelRepo:    channelRepo,
 		groupRepo:      groupRepo,
+		accountRepo:    accountRepo,
 		pricingService: pricingService,
 		billingService: billingService,
 		resolver:       resolver,
@@ -104,6 +110,16 @@ func NewModelPlazaService(
 //
 // 可见性过滤（专属分组）不在此层做，由 handler 按登录态裁剪。
 func (s *ModelPlazaService) ListGroups(ctx context.Context) ([]PlazaGroup, error) {
+	return s.listGroups(ctx, false)
+}
+
+// ListMarketGroups augments the channel catalog with models configured on the
+// group's own accounts. Market groups without enumerable models still appear.
+func (s *ModelPlazaService) ListMarketGroups(ctx context.Context) ([]PlazaGroup, error) {
+	return s.listGroups(ctx, true)
+}
+
+func (s *ModelPlazaService) listGroups(ctx context.Context, market bool) ([]PlazaGroup, error) {
 	channels, err := s.channelRepo.ListAll(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("list channels: %w", err)
@@ -151,6 +167,7 @@ func (s *ModelPlazaService) ListGroups(ctx context.Context) ([]PlazaGroup, error
 	}
 	// modelIdx[groupID][platform+modelName] = index into byGroup[groupID].Models
 	modelIdx := make(map[int64]map[modelKey]int, len(groups))
+	channelRestricted := make(map[int64]bool)
 	for i := range channels {
 		ch := &channels[i]
 		if ch.Status != StatusActive {
@@ -165,6 +182,9 @@ func (s *ModelPlazaService) ListGroups(ctx context.Context) ([]PlazaGroup, error
 			if !ok {
 				continue
 			}
+			if market && ch.RestrictModels {
+				channelRestricted[gid] = true
+			}
 			idx := modelIdx[gid]
 			if idx == nil {
 				idx = make(map[modelKey]int, len(supported))
@@ -172,6 +192,9 @@ func (s *ModelPlazaService) ListGroups(ctx context.Context) ([]PlazaGroup, error
 			}
 			for j := range supported {
 				m := supported[j]
+				if market && !groupEnt[gid].ModelAllowlist.Allows(m.Name) {
+					continue
+				}
 				if pg.Platform == PlatformComposite {
 					if !isConcreteRequestPlatform(m.Platform) {
 						continue
@@ -197,11 +220,63 @@ func (s *ModelPlazaService) ListGroups(ctx context.Context) ([]PlazaGroup, error
 		}
 	}
 
+	// An alias may bill at its upstream model's price, which can differ among
+	// accounts. Keep the model visible without quoting a request-name price.
+	accountAliases := make(map[int64]map[modelKey]bool)
+	if market && len(groups) != 0 {
+		accounts, err := s.accountRepo.ListModelAvailabilityCandidates(ctx, nil, domain.ConcretePlatformIDs(), true)
+		if err != nil {
+			return nil, fmt.Errorf("list market accounts: %w", err)
+		}
+		for i := range accounts {
+			account := &accounts[i]
+			mapping := marketAccountModelMapping(account)
+			for _, gid := range account.GroupIDs {
+				pg := byGroup[gid]
+				// A restricted channel already defines the group's catalog.
+				if pg == nil || channelRestricted[gid] {
+					continue
+				}
+				platform := account.Platform
+				mixed := platform != pg.Platform && mixedListingAccountAllowed(pg.Platform, account)
+				if mixed {
+					platform = pg.Platform
+				}
+				if pg.Platform != PlatformComposite && platform != pg.Platform {
+					continue
+				}
+				for model, target := range mapping {
+					if strings.TrimSpace(model) == "" || strings.TrimSpace(target) == "" || strings.Contains(model, "*") ||
+						(account.IsOpenAI() && isRetiredOpenAISubscriptionModel(account, resolveOpenAIAccountUpstreamModelForRequest(account, model, false))) ||
+						(mixed && !mixedListingModelAllowed(platform, model)) || !groupEnt[gid].ModelAllowlist.Allows(model) {
+						continue
+					}
+					key := modelKey{platform: platform, name: model}
+					if model != target {
+						if accountAliases[gid] == nil {
+							accountAliases[gid] = make(map[modelKey]bool)
+						}
+						accountAliases[gid][key] = true
+					}
+					idx := modelIdx[gid]
+					if idx == nil {
+						idx = make(map[modelKey]int)
+						modelIdx[gid] = idx
+					}
+					if _, exists := idx[key]; !exists {
+						idx[key] = len(pg.Models)
+						pg.Models = append(pg.Models, PlazaModel{Name: model, Platform: platform})
+					}
+				}
+			}
+		}
+	}
+
 	officialMemo := make(map[string]*PlazaOfficialPricing)
 	out := make([]PlazaGroup, 0, len(order))
 	for _, gid := range order {
 		pg := byGroup[gid]
-		if len(pg.Models) == 0 {
+		if !market && len(pg.Models) == 0 {
 			continue
 		}
 		sort.SliceStable(pg.Models, func(i, j int) bool {
@@ -212,8 +287,13 @@ func (s *ModelPlazaService) ListGroups(ctx context.Context) ([]PlazaGroup, error
 		})
 		g := groupEnt[gid]
 		for j := range pg.Models {
-			s.fillDisplayPricing(ctx, &pg.Models[j], g)
-			pg.Models[j].OfficialPricing = s.lookupOfficialPricing(ctx, pg.Models[j].Name, officialMemo)
+			m := &pg.Models[j]
+			if accountAliases[gid][modelKey{platform: m.Platform, name: m.Name}] {
+				m.Pricing = nil
+				continue
+			}
+			s.fillDisplayPricing(ctx, m, g)
+			m.OfficialPricing = s.lookupOfficialPricing(ctx, m.Name, officialMemo)
 		}
 		out = append(out, *pg)
 	}
@@ -225,6 +305,30 @@ func (s *ModelPlazaService) ListGroups(ctx context.Context) ([]PlazaGroup, error
 		return out[i].Name < out[j].Name
 	})
 	return out, nil
+}
+
+// marketAccountModelMapping avoids the generic /v1/models default catalog:
+// a passthrough account alone does not prove which model IDs it can serve.
+func marketAccountModelMapping(account *Account) map[string]string {
+	if account.IsOpenAIPassthroughEnabled() {
+		return nil
+	}
+	if mapping := stringMappingFromRaw(account.Credentials["model_mapping"]); len(mapping) != 0 {
+		return mapping
+	}
+	if !account.IsGrok() {
+		return nil
+	}
+	// Grok accounts with no stored mapping use the gateway's native routing
+	// table. Include its concrete native IDs, excluding compatibility aliases.
+	mapping := account.GetModelMapping()
+	out := make(map[string]string)
+	for _, model := range xai.DefaultModelIDs() {
+		if target, ok := mapping[model]; ok {
+			out[model] = target
+		}
+	}
+	return out
 }
 
 // fillDisplayPricing 把模型的展示定价换成实收口径：
