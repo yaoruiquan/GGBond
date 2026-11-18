@@ -1,5 +1,5 @@
 <template>
-  <article class="group relative flex min-h-[430px] flex-col overflow-hidden rounded-[24px] border border-slate-200 bg-white p-6 shadow-[0_18px_45px_-32px_rgba(15,23,42,0.45)] transition duration-300 hover:-translate-y-1 hover:border-emerald-300 hover:shadow-[0_24px_60px_-30px_rgba(16,110,91,0.28)] dark:border-dark-700 dark:bg-dark-900 dark:hover:border-emerald-500/60">
+  <article class="group relative flex min-h-[390px] flex-col overflow-hidden rounded-lg border border-slate-200 bg-white p-6 shadow-[0_18px_45px_-32px_rgba(15,23,42,0.45)] transition duration-300 hover:-translate-y-1 hover:border-emerald-300 hover:shadow-[0_24px_60px_-30px_rgba(16,110,91,0.28)] dark:border-dark-700 dark:bg-dark-900 dark:hover:border-emerald-500/60">
     <div class="absolute inset-x-6 top-0 h-0.5 rounded-b-full bg-amber-200 dark:bg-amber-500/70"></div>
 
     <div class="flex items-start justify-between gap-4 pt-1">
@@ -9,46 +9,61 @@
         </span>
         <div>
           <p class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400 dark:text-dark-500">{{ vendorName }}</p>
-          <p class="mt-0.5 text-xs text-slate-400 dark:text-dark-500">{{ t('modelMarket.sample') }}</p>
+          <p class="mt-0.5 text-xs text-slate-400 dark:text-dark-500">{{ model.groupName }}</p>
         </div>
       </div>
-      <span class="pt-2 text-xs font-medium tracking-wide text-slate-400 dark:text-dark-500">TOKEN</span>
+      <span class="pt-2 text-xs font-medium tracking-wide text-slate-400 dark:text-dark-500">{{ billingModeLabel }}</span>
     </div>
 
     <div class="mt-7">
-      <h2 class="break-words font-mono text-[1.75rem] font-semibold tracking-[-0.04em] text-slate-950 dark:text-white">{{ model.name }}</h2>
-      <p class="mt-3 min-h-[48px] text-sm leading-6 text-slate-500 dark:text-dark-300">{{ model.description }}</p>
+      <h2 class="break-words font-mono text-[1.75rem] font-semibold text-slate-950 dark:text-white">{{ model.name }}</h2>
+      <p class="mt-3 min-h-[48px] text-sm leading-6 text-slate-500 dark:text-dark-300">{{ model.description || t('modelMarket.noDescription') }}</p>
     </div>
 
-    <div class="mt-5 flex min-h-14 flex-wrap content-start gap-2">
-      <span v-if="model.badge" class="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs font-medium text-slate-600 dark:border-dark-700 dark:bg-dark-800 dark:text-dark-200">{{ model.badge }}</span>
-      <span v-for="capability in model.capabilities" :key="capability" class="rounded-lg border border-emerald-100 bg-emerald-50/70 px-2.5 py-1.5 text-xs font-medium text-emerald-800 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-300">{{ capability }}</span>
+    <div class="mt-5 flex items-center justify-between rounded-lg border-2 border-amber-300 bg-amber-50 px-4 py-3 dark:border-amber-700 dark:bg-amber-950/30">
+      <span class="text-sm font-semibold text-amber-900 dark:text-amber-200">{{ t(`modelMarket.card.multiplierKind.${model.multiplierKind}`) }}</span>
+      <strong class="font-mono text-xl font-bold text-amber-900 dark:text-amber-200">×{{ formatMultiplier(model.multiplier) }}</strong>
     </div>
+    <div v-if="(model.billingMode === 'token' && model.peakRateEnabled && model.peakRateMultiplier !== 1) || model.timePricing?.periods.length" class="mt-2 space-y-1 text-xs font-medium text-amber-800 dark:text-amber-300">
+      <p v-if="model.billingMode === 'token' && model.peakRateEnabled && model.peakRateMultiplier !== 1">
+        {{ t('modelMarket.card.peakMultiplier', { rate: formatMultiplier(model.peakRateMultiplier), combined: formatMultiplier(model.multiplier * model.peakRateMultiplier), start: model.peakStart, end: model.peakEnd }) }}
+      </p>
+      <p v-for="period in model.timePricing?.periods ?? []" :key="`${period.start_time}-${period.end_time}`">
+        {{ t('modelMarket.card.timeMultiplier', { days: model.timePricing?.weekdays_only ? t('modelMarket.card.weekdays') : t('modelMarket.card.everyDay'), timezone: model.timePricing?.timezone, start: period.start_time, end: period.end_time, rate: formatMultiplier(period.multiplier), combined: formatMultiplier(model.multiplier * period.multiplier) }) }}
+      </p>
+    </div>
+    <p v-if="model.priceTiers.length > 1" class="mt-2 text-xs font-medium text-amber-800 dark:text-amber-300">
+      {{ t('modelMarket.card.tierPricing') }}
+    </p>
 
-    <div class="mt-6 grid grid-cols-2 gap-3">
-      <div class="rounded-2xl border border-slate-200 bg-slate-50/80 p-4 dark:border-dark-700 dark:bg-dark-800/70">
-        <p class="text-xs font-medium text-slate-500 dark:text-dark-400">{{ t('modelMarket.card.input') }} · {{ t('modelMarket.sample') }}</p>
-        <p class="mt-2 font-mono text-2xl font-semibold tracking-tight text-emerald-700 dark:text-emerald-300">{{ model.inputPrice }}</p>
+    <div v-if="model.billingMode === 'token'" class="mt-5 grid grid-cols-2 divide-x divide-slate-200 dark:divide-dark-700">
+      <div class="px-3 py-1">
+        <p class="text-xs font-medium text-slate-500 dark:text-dark-400">{{ t('modelMarket.card.input') }}</p>
+        <p class="mt-2 font-mono text-lg font-semibold tracking-tight text-emerald-700 dark:text-emerald-300">{{ formatPrice(model.inputPrice, true) }}</p>
         <p class="mt-1 text-xs text-slate-400 dark:text-dark-500">{{ t('modelMarket.card.perMillion') }}</p>
       </div>
-      <div class="rounded-2xl border border-slate-200 bg-slate-50/80 p-4 dark:border-dark-700 dark:bg-dark-800/70">
-        <p class="text-xs font-medium text-slate-500 dark:text-dark-400">{{ t('modelMarket.card.output') }} · {{ t('modelMarket.sample') }}</p>
-        <p class="mt-2 font-mono text-2xl font-semibold tracking-tight text-emerald-700 dark:text-emerald-300">{{ model.outputPrice }}</p>
+      <div class="px-3 py-1">
+        <p class="text-xs font-medium text-slate-500 dark:text-dark-400">{{ t('modelMarket.card.output') }}</p>
+        <p class="mt-2 font-mono text-lg font-semibold tracking-tight text-emerald-700 dark:text-emerald-300">{{ formatPrice(model.outputPrice, true) }}</p>
         <p class="mt-1 text-xs text-slate-400 dark:text-dark-500">{{ t('modelMarket.card.perMillion') }}</p>
       </div>
     </div>
 
-    <div class="mt-5 flex items-center justify-between border-t border-slate-100 pt-4 text-sm dark:border-dark-700">
-      <div>
-        <span class="text-slate-400 dark:text-dark-500">{{ t('modelMarket.card.context') }}</span>
-        <span class="ml-2 font-mono font-medium text-slate-700 dark:text-dark-100">{{ model.contextLength }}</span>
-      </div>
+    <div v-else class="mt-5 border-t border-slate-200 pt-4 dark:border-dark-700">
+      <p class="text-xs font-medium text-slate-500 dark:text-dark-400">{{ t('modelMarket.card.perRequest') }}</p>
+      <p class="mt-2 font-mono text-xl font-semibold text-emerald-700 dark:text-emerald-300">{{ formatPrice(model.requestPrice, false) }}</p>
+      <p class="mt-1 text-xs text-slate-400 dark:text-dark-500">{{ requestUnit }}</p>
     </div>
 
-    <div class="my-5 grid grid-cols-3 divide-x divide-slate-200 text-xs dark:divide-dark-700">
-      <div><p class="text-slate-400 dark:text-dark-500">{{ t('modelMarket.card.cacheWrite5m') }}</p><p class="mt-2 font-mono font-semibold">{{ model.cacheWrite5mPrice ?? '—' }}</p></div>
-      <div class="pl-3"><p class="text-slate-400 dark:text-dark-500">{{ t('modelMarket.card.cacheWrite1h') }}</p><p class="mt-2 font-mono font-semibold">{{ model.cacheWrite1hPrice ?? '—' }}</p></div>
-      <div class="pl-3"><p class="text-slate-400 dark:text-dark-500">{{ t('modelMarket.card.cache') }}</p><p class="mt-2 font-mono font-semibold">{{ model.cacheReadPrice ?? '—' }}</p></div>
+    <div v-if="model.billingMode === 'token' && (model.cacheWrite5mPrice != null || model.cacheWrite1hPrice != null || model.cacheReadPrice != null)" class="my-5 grid grid-cols-3 divide-x divide-slate-200 text-xs dark:divide-dark-700">
+      <div><p class="text-slate-400 dark:text-dark-500">{{ t('modelMarket.card.cacheWrite5m') }}</p><p class="mt-2 font-mono font-semibold">{{ formatPrice(model.cacheWrite5mPrice, true) }}</p></div>
+      <div class="pl-3"><p class="text-slate-400 dark:text-dark-500">{{ t('modelMarket.card.cacheWrite1h') }}</p><p class="mt-2 font-mono font-semibold">{{ formatPrice(model.cacheWrite1hPrice, true) }}</p></div>
+      <div class="pl-3"><p class="text-slate-400 dark:text-dark-500">{{ t('modelMarket.card.cache') }}</p><p class="mt-2 font-mono font-semibold">{{ formatPrice(model.cacheReadPrice, true) }}</p></div>
+    </div>
+
+    <div class="my-4 border-t border-slate-100 pt-3 text-sm dark:border-dark-700">
+      <span class="text-slate-400 dark:text-dark-500">{{ t('modelMarket.card.group') }}</span>
+      <span class="ml-2 font-medium text-slate-700 dark:text-dark-100">{{ model.groupName }}</span>
     </div>
 
     <button
@@ -63,12 +78,13 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import PlatformIcon from '@/components/common/PlatformIcon.vue'
 import type { GroupPlatform } from '@/types'
 import type { ModelMarketModel } from '@/data/modelMarket'
 
-defineProps<{
+const props = defineProps<{
   model: ModelMarketModel
   vendorName: string
 }>()
@@ -78,4 +94,18 @@ defineEmits<{
 }>()
 
 const { t } = useI18n()
+const billingModeLabel = computed(() => t(`modelMarket.card.mode.${props.model.billingMode}`))
+const requestUnit = computed(() => props.model.billingMode === 'image'
+  ? t('modelMarket.card.perImageUnit')
+  : props.model.billingMode === 'video'
+    ? t('modelMarket.card.perVideoUnit')
+    : t('modelMarket.card.perRequestUnit'))
+
+function formatPrice(value: number | null, perMillion: boolean) {
+  if (value == null) return t('modelMarket.priceUnavailable')
+  const amount = perMillion ? value * 1_000_000 : value
+  return `USD ${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 6 })}`
+}
+
+function formatMultiplier(value: number) { return Number(value.toPrecision(8)).toString() }
 </script>

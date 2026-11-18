@@ -1,19 +1,19 @@
 # 独立模型市场开发说明
 
 - 日期：2026-11-17
-- 状态：已部署生产 `v2026.11.18-1`；本地与生产路由验收通过
+- 状态：原型版本已于 `v2026.11.18-1` 部署；真实分组数据版本于 2026-11-18 本地验证通过，等待新版本发布
 
 ## 目标
 
-新增一个独立的模型展示页，产品名称为“模型市场”。页面参考卡片式模型价格目录，但不复用 Sub2API 自带的 `/model-plaza` 业务逻辑，也不依赖管理员开关、分组、倍率或权限配置。
+新增一个独立的模型展示页，产品名称为“模型市场”。页面复用 Sub2API 的分组可见性与计价数据，但拥有独立页面/API 路径，不依赖旧模型广场开关，也不新增后台配置。
 
 ## 页面边界
 
 - 新路由：`/model-market`
 - 原路由：`/model-plaza` 保持原样，继续服务 Sub2API 自带模型广场
-- 新页面使用前端内置展示数据，打开路由即可渲染
+- 新页面通过 `/api/v1/model-market` 加载可见分组中的真实模型及本站价格
 - 默认首页固定显示“模型市场”入口；原版入口保留原有开关规则，文案区分为“原版广场”
-- 不新增后端接口，不读取 `/api/v1/model-plaza`
+- 不读取旧 `/api/v1/model-plaza` 路径；新的 API handler 复用其安全 DTO 和服务层数据聚合
 - 不修改现有模型广场设置、鉴权、计费和管理端入口
 
 ## 信息架构
@@ -24,37 +24,39 @@
 2. 页面标题区：说明这是一个用于浏览和比较模型的独立目录。
 3. 厂商横栏：按厂商筛选，例如 OpenAI、Anthropic、Google、xAI、DeepSeek、Moonshot。
 4. 模型横栏：根据当前厂商展示具体模型，例如 GPT-5.6、Claude Sonnet 4.5；支持“全部模型”。
-5. 搜索与排序：按模型名、能力和厂商搜索，支持推荐、价格和上下文长度排序。
-6. 模型卡片：展示厂商、模型名、能力标签、上下文长度、输入/输出参考价、缓存价格和“查看详情”按钮。
+5. 搜索与排序：按模型名、厂商和分组搜索，支持厂商、价格和模型名排序。
+6. 模型卡片：展示厂商、模型名、所属分组、明显的生效倍率、本站输入/输出或按次价格及“查看详情”按钮。
 
 ## 数据结构
 
-首版数据放在 `frontend/src/data/modelMarket.ts`，模型对象包含：
+页面卡片由 API 分组及模型数据构建，模型对象包含：
 
 - `id`、`name`、`vendorId`、`platform`
-- `description`、`capabilities`、`contextLength`
-- `inputPrice`、`outputPrice`、`cacheReadPrice`、`cacheWrite5mPrice`、`cacheWrite1hPrice`
-- `badge`
+- `groupId`、`groupName`、`description`、`billingMode`、`multiplier`
+- 输入/输出价格、按次价格和缓存价格；缺失价格显示“未配置”
 
-内置的 6 个厂商、8 个模型条目用于展示布局；名称、参数、价格均非经过供应商校验的实时目录，不代表当前实例真实可用性或计费价格。页面标明“示例价格”，缺失缓存价格显示 `—`，不伪造在线状态、折扣或刷新时间。所有 Token 价格示例以 USD / 1M token 展示，不乘后台倍率或站点汇率。
+厂商和模型均根据当前可见分组动态生成。同一厂商/模型在不同分组分别展示。倍率应用规则与现有模型广场一致，卡片显著标注生效倍率；不填充后端未提供的能力、上下文等参数，不用官方参考价替代本站计费价。
 
-导航品牌可读取已有公开设置，但设置加载失败会使用默认品牌，卡片和筛选不受影响。不需要配置新设置项。后续如果接入真实目录，应新增独立的目录接口和数据来源标识，不把目录数据混入 `/model-plaza`。
+导航品牌可读取已有公开设置，但设置加载失败会使用默认品牌。无需新增模型市场设置项；分组、模型和计价继续由现有管理界面维护。
 
 ## 实现文件
 
 - `frontend/src/views/ModelMarketView.vue`：独立页面、两级筛选、搜索排序、详情。
 - `frontend/src/components/modelMarket/ModelMarketNavBar.vue`：导航与默认品牌。
 - `frontend/src/components/modelMarket/ModelMarketCard.vue`：模型价格卡片。
-- `frontend/src/data/modelMarket.ts`：内置展示目录。
+- `frontend/src/data/modelMarket.ts`：将分组响应映射为每个分组独立的模型卡片。
+- `frontend/src/api/modelPlaza.ts`：独立模型市场 API 类型与请求入口。
+- `backend/internal/server/routes/model_plaza.go`：注册独立市场 API 路由。
+- `backend/internal/handler/model_plaza_handler.go`：复用分组可见性和计价 DTO，忽略旧广场开关。
 - `frontend/src/components/modelMarket/__tests__/ModelMarketNavBar.spec.ts`：原版入口可见性、默认品牌与控制台导航回归测试。
 - `frontend/src/router/index.ts`、`frontend/src/views/HomeView.vue`：公开路由与首页入口。
-- `frontend/src/i18n/locales/{zh,en}/dashboard.ts`：页面界面文案。内置模型描述当前为中文。
+- `frontend/src/i18n/locales/{zh,en}/dashboard.ts`：页面界面文案。
 
 详情复用项目 `BaseDialog`，支持 Escape、背景点击关闭及滚动锁定。新增依赖、后端接口与数据库迁移均为零。
 
 ## 验收标准
 
-- 访问 `/model-market` 不需要任何后台配置即可看到卡片
+- 访问 `/model-market` 不需要新增后台配置；返回数据严格来自当前可见分组
 - 厂商横栏和模型横栏可以联动筛选
 - 搜索、排序、空结果状态可用
 - `/model-plaza` 的路由、守卫和页面行为不改变
@@ -72,7 +74,7 @@
 
 浏览器预览地址为 `http://127.0.0.1:4000/model-market`。已验证默认显示 8 张卡片，选择 Claude 显示 2 张，再选择 Opus 仅显示 1 张；详情价格表和 Escape 关闭正常。已检查桌面、深色模式及 390 × 844 手机布局，手机页面无横向溢出，两条筛选栏可以独立横向滚动。
 
-本地后端未启动，全局初始化及公开设置请求会报错；模型卡片仍能使用默认品牌和内置数据正常展示。此次验收不包含真实后端计费、真实目录或生产部署。
+原始验收仅覆盖内置演示数据，不能证明真实模型与价格正确。2026-11-18 修正后，需以本地 API 集成测试、倍率测试和生产构建的最新结果重新验收。
 
 截图保存在本地 `output/playwright/`：`model-market-desktop.png`、`model-market-mobile.png`、`model-market-dark.png`。
 

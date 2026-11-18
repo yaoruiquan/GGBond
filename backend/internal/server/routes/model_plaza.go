@@ -28,3 +28,20 @@ func RegisterModelPlazaRoutes(
 		plaza.GET("", h.ModelPlaza.Get)
 	}
 }
+
+// RegisterModelMarketRoutes exposes the independent model-market data endpoint.
+// It shares the plaza's group visibility and pricing projection, but not its
+// optional feature switch or require-auth setting.
+func RegisterModelMarketRoutes(
+	v1 *gin.RouterGroup,
+	h *handler.Handlers,
+	optionalJWT middleware.OptionalJWTAuthMiddleware,
+	settingService *service.SettingService,
+	panelRateLimiter *middleware.PanelRateLimiter,
+) {
+	market := v1.Group("/model-market")
+	market.Use(panelRateLimiter.PublicIP())
+	market.Use(gin.HandlerFunc(optionalJWT))
+	market.Use(middleware.BackendModeUserGuard(settingService))
+	market.GET("", h.ModelPlaza.GetMarket)
+}

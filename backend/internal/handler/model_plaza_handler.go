@@ -117,9 +117,19 @@ func (h *ModelPlazaHandler) Get(c *gin.Context) {
 		response.NotFound(c, "Model plaza is not enabled")
 		return
 	}
+	h.getVisibleGroups(c, rt.Description, rt.RequireAuth)
+}
+
+// GetMarket returns the same live group/model/pricing data for the independent
+// model market without depending on the legacy model-plaza feature switch.
+func (h *ModelPlazaHandler) GetMarket(c *gin.Context) {
+	h.getVisibleGroups(c, "", false)
+}
+
+func (h *ModelPlazaHandler) getVisibleGroups(c *gin.Context, description string, requireAuth bool) {
 
 	subject, authed := middleware.GetAuthSubjectFromContext(c)
-	if rt.RequireAuth && !authed {
+	if requireAuth && !authed {
 		response.Unauthorized(c, "Authentication required")
 		return
 	}
@@ -156,7 +166,7 @@ func (h *ModelPlazaHandler) Get(c *gin.Context) {
 	c.Writer.Header().Add("Vary", "Accept-Language")
 	out := toLocalizedModelPlazaGroups(visible, userRates, c.GetHeader("Accept-Language"))
 	response.Success(c, modelPlazaResponse{
-		Description: rt.Description,
+		Description: description,
 		Groups:      out,
 	})
 }

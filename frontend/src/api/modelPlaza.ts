@@ -95,6 +95,14 @@ export async function getModelPlaza(options?: { signal?: AbortSignal }): Promise
   return data
 }
 
-export const modelPlazaAPI = { getModelPlaza }
+/** 获取模型市场数据，不受旧版模型广场开关影响。 */
+export async function getModelMarket(options?: { signal?: AbortSignal }): Promise<ModelPlazaResponse> {
+  const { data } = await apiClient.get<ModelPlazaResponse>('/model-market', {
+    signal: options?.signal
+  })
+  return data
+}
+
+export const modelPlazaAPI = { getModelPlaza, getModelMarket }
 
 export default modelPlazaAPI

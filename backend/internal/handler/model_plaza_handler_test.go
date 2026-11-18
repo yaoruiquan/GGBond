@@ -88,6 +88,23 @@ func TestModelPlazaHandler_NilSettingServiceFailsClosed404(t *testing.T) {
 	require.Equal(t, http.StatusNotFound, w.Code)
 }
 
+func TestModelPlazaHandler_ModelMarketDoesNotRequireLegacyPlazaSetting(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h := NewModelPlazaHandler(
+		service.NewModelPlazaService(plazaVaryChannelRepo{}, plazaVaryGroupRepo{}, nil, nil, nil),
+		nil,
+		nil,
+	)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodGet, "/api/v1/model-market", nil)
+
+	h.GetMarket(c)
+
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	require.Contains(t, w.Body.String(), `"groups":[]`)
+}
+
 func TestToModelPlazaGroupDTO_UserRateAndFieldWhitelist(t *testing.T) {
 	g := service.PlazaGroup{
 		ID: 2, Name: "vip", Description: "d", Platform: "anthropic",
