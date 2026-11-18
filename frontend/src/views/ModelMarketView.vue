@@ -114,7 +114,7 @@
                 <dt class="font-medium">{{ tier.label }}</dt>
                 <dd class="mt-1 font-mono text-xs leading-6">
                   <template v-if="selectedDetail.billingMode === 'token'">{{ t('modelMarket.card.input') }} {{ formatPrice(tier.inputPrice, true) }} · {{ t('modelMarket.card.output') }} {{ formatPrice(tier.outputPrice, true) }}</template>
-                  <template v-else>{{ t('modelMarket.card.perRequest') }} {{ formatPrice(tier.requestPrice, false) }}</template>
+                  <template v-else>{{ t('modelMarket.card.perRequest') }} {{ formatPrice(tier.requestPrice, false) }} <span class="text-slate-500">{{ requestUnit(selectedDetail.billingMode) }}</span></template>
                   <span v-if="tier.cacheWrite5mPrice != null"> · {{ t('modelMarket.card.cacheWrite5m') }} {{ formatPrice(tier.cacheWrite5mPrice, true) }}</span>
                   <span v-if="tier.cacheWrite1hPrice != null"> · {{ t('modelMarket.card.cacheWrite1h') }} {{ formatPrice(tier.cacheWrite1hPrice, true) }}</span>
                   <span v-if="tier.cacheReadPrice != null"> · {{ t('modelMarket.card.cache') }} {{ formatPrice(tier.cacheReadPrice, true) }}</span>
@@ -123,7 +123,7 @@
             </template>
             <div v-if="selectedDetail.billingMode === 'token' && selectedDetail.priceTiers.length <= 1" class="flex justify-between py-3"><dt>{{ t('modelMarket.card.input') }}</dt><dd class="font-mono">{{ formatPrice(selectedDetail.inputPrice, true) }}</dd></div>
             <div v-if="selectedDetail.billingMode === 'token' && selectedDetail.priceTiers.length <= 1" class="flex justify-between py-3"><dt>{{ t('modelMarket.card.output') }}</dt><dd class="font-mono">{{ formatPrice(selectedDetail.outputPrice, true) }}</dd></div>
-            <div v-if="selectedDetail.billingMode !== 'token' && selectedDetail.priceTiers.length <= 1" class="flex justify-between py-3"><dt>{{ t('modelMarket.card.perRequest') }}</dt><dd class="font-mono">{{ formatPrice(selectedDetail.requestPrice, false) }}</dd></div>
+            <div v-if="selectedDetail.billingMode !== 'token' && selectedDetail.priceTiers.length <= 1" class="flex justify-between gap-4 py-3"><dt>{{ t('modelMarket.card.perRequest') }}</dt><dd class="text-right font-mono">{{ formatPrice(selectedDetail.requestPrice, false) }} <span class="font-sans text-xs text-slate-500">{{ requestUnit(selectedDetail.billingMode) }}</span></dd></div>
             <div v-if="selectedDetail.billingMode === 'token' && selectedDetail.priceTiers.length <= 1" class="flex justify-between py-3"><dt>{{ t('modelMarket.card.cacheWrite5m') }}</dt><dd class="font-mono">{{ formatPrice(selectedDetail.cacheWrite5mPrice, true) }}</dd></div>
             <div v-if="selectedDetail.billingMode === 'token' && selectedDetail.priceTiers.length <= 1" class="flex justify-between py-3"><dt>{{ t('modelMarket.card.cacheWrite1h') }}</dt><dd class="font-mono">{{ formatPrice(selectedDetail.cacheWrite1hPrice, true) }}</dd></div>
             <div v-if="selectedDetail.billingMode === 'token' && selectedDetail.priceTiers.length <= 1" class="flex justify-between py-3"><dt>{{ t('modelMarket.card.cache') }}</dt><dd class="font-mono">{{ formatPrice(selectedDetail.cacheReadPrice, true) }}</dd></div>
@@ -196,6 +196,12 @@ function formatPrice(value: number | null, perMillion: boolean) {
   if (value == null) return t('modelMarket.priceUnavailable')
   const amount = perMillion ? value * 1_000_000 : value
   return `USD ${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 6 })}`
+}
+
+function requestUnit(billingMode: string) {
+  if (billingMode === 'image') return t('modelMarket.card.perImageUnit')
+  if (billingMode === 'video') return t('modelMarket.card.perSecondUnit')
+  return t('modelMarket.card.perRequestUnit')
 }
 
 function formatMultiplier(value: number) { return Number(value.toPrecision(8)).toString() }

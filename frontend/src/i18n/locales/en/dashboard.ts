@@ -764,7 +764,7 @@ export default {
       perRequest: 'Per-request price',
       perRequestUnit: 'Uses the configured billing unit',
       perImageUnit: 'Billed per image',
-      perVideoUnit: 'Billed per video',
+      perSecondUnit: 'Billed per second',
       tierPricing: 'Long-context tier pricing',
       timePricing: 'Time-based multiplier applies',
       mode: { token: 'Token', image: 'Image', video: 'Video', per_request: 'Per request', unknown: 'Billing' },

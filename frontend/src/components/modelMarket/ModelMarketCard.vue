@@ -98,7 +98,7 @@ const billingModeLabel = computed(() => t(`modelMarket.card.mode.${props.model.b
 const requestUnit = computed(() => props.model.billingMode === 'image'
   ? t('modelMarket.card.perImageUnit')
   : props.model.billingMode === 'video'
-    ? t('modelMarket.card.perVideoUnit')
+    ? t('modelMarket.card.perSecondUnit')
     : t('modelMarket.card.perRequestUnit'))
 
 function formatPrice(value: number | null, perMillion: boolean) {

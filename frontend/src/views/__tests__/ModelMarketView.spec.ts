@@ -122,4 +122,17 @@ describe('independent model market', () => {
     expect(model.multiplierKind).toBe('image')
     expect(model.requestPrice).toBe(0.2)
   })
+
+  it('labels video pricing by second in cards and details', async () => {
+    const group = {
+      ...liveGroups[0],
+      peak_rate_enabled: false,
+      models: [{ name: 'video-live', platform: 'openai', pricing: { billing_mode: 'video', input_price: null, output_price: null, cache_write_price: null, cache_read_price: null, image_input_price: null, image_output_price: null, per_request_price: 0.02, intervals: [] }, official_pricing: null }]
+    }
+    vi.mocked(getModelMarket).mockResolvedValueOnce({ description: '', groups: [group] as unknown as ModelPlazaResponse['groups'] })
+    const wrapper = await mountMarket()
+    expect(wrapper.findAllComponents(ModelMarketCard)[0].text()).toContain('modelMarket.card.perSecondUnit')
+    await wrapper.findComponent(ModelMarketCard).get('button').trigger('click')
+    expect(wrapper.get('[role="dialog"]').text()).toContain('modelMarket.card.perSecondUnit')
+  })
 })

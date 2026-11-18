@@ -768,7 +768,7 @@ export default {
       perRequest: '单次价格',
       perRequestUnit: '按实际计费单位',
       perImageUnit: '按张计费',
-      perVideoUnit: '按个视频计费',
+      perSecondUnit: '按秒计费',
       tierPricing: '长上下文阶梯价',
       timePricing: '存在分时倍率',
       mode: { token: 'Token', image: '图片', video: '视频', per_request: '按次', unknown: '计费' },
