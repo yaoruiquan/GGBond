@@ -63,6 +63,12 @@ func marketDiscoveryKey(account *Account) string {
 	return fmt.Sprintf("%d:%x", account.ID, sha256.Sum256(config))
 }
 
+func (d *marketDiscovery) cachedResult(key string) (marketDiscoveryResult, time.Time, bool) {
+	value, expires, _ := d.cache.GetWithExpiration(key)
+	result, ok := value.(marketDiscoveryResult)
+	return result, expires, ok
+}
+
 func (d *marketDiscovery) models(ctx context.Context, accounts map[int64]*Account) (map[int64][]string, bool) {
 	if d == nil {
 		return nil, false
@@ -80,8 +86,8 @@ func (d *marketDiscovery) models(ctx context.Context, accounts map[int64]*Accoun
 		}
 		key := marketDiscoveryKey(account)
 		keys[id] = key
-		cached, ok := d.cache.Get(key)
-		if !ok || !time.Now().Before(cached.(marketDiscoveryResult).refreshAt) {
+		cached, _, ok := d.cachedResult(key)
+		if !ok || !time.Now().Before(cached.refreshAt) {
 			cold = cold || !ok
 			pending = append(pending, catalogAccount{*account, key})
 		}
@@ -124,9 +130,9 @@ func (d *marketDiscovery) models(ctx context.Context, accounts map[int64]*Accoun
 	models := make(map[int64][]string, len(keys))
 	refreshing := false
 	for id, key := range keys {
-		if cached, ok := d.cache.Get(key); ok {
-			models[id] = cached.(marketDiscoveryResult).models
-			refreshing = refreshing || !time.Now().Before(cached.(marketDiscoveryResult).refreshAt)
+		if cached, _, ok := d.cachedResult(key); ok {
+			models[id] = cached.models
+			refreshing = refreshing || !time.Now().Before(cached.refreshAt)
 		} else {
 			refreshing = true
 		}
@@ -135,13 +141,8 @@ func (d *marketDiscovery) models(ctx context.Context, accounts map[int64]*Accoun
 }
 
 func (d *marketDiscovery) refresh(account *Account, key string) {
-	cached, ok := d.cache.Get(key)
-	var previous marketDiscoveryResult
-	if ok {
-		previous = cached.(marketDiscoveryResult)
-		if time.Now().Before(previous.refreshAt) {
-			return
-		}
+	if cached, _, ok := d.cachedResult(key); ok && time.Now().Before(cached.refreshAt) {
+		return
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), marketDiscoveryTimeout)
 	defer cancel()
@@ -149,8 +150,7 @@ func (d *marketDiscovery) refresh(account *Account, key string) {
 	if err != nil {
 		// Keep usable results for their original TTL. A short separate retry
 		// window prevents repeated failures from extending that TTL indefinitely.
-		if cached, expires, ok := d.cache.GetWithExpiration(key); ok {
-			previous = cached.(marketDiscoveryResult)
+		if previous, expires, ok := d.cachedResult(key); ok {
 			previous.refreshAt = time.Now().Add(marketDiscoveryRetry)
 			if remaining := time.Until(expires); remaining > 0 {
 				d.cache.Set(key, previous, remaining)
